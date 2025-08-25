@@ -21,8 +21,11 @@ import { MatchItem } from './src/components/MatchItem';
 import { MessageBubble } from './src/components/MessageBubble';
 import { MediaPreview } from './src/components/MediaPreview';
 import { BottomNav } from './src/components/BottomNav';
+import LoginScreen from './src/components/LoginScreen';
+import WelcomeModal from './src/components/WelcomeModal';
 import { usePresence } from './src/hooks/usePresence';
 import { getRandomResponse } from './src/utils/responses';
+import { authService } from './src/services/authService';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -32,7 +35,10 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const SWIPE_OUT_DURATION = 250;
 
 const LoveConnectApp = () => {
+    const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn());
+    const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
     const [currentScreen, setCurrentScreen] = useState('discover');
+    const [showWelcome, setShowWelcome] = useState(false);
     const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
     const [matches, setMatches] = useState([
         {
@@ -73,6 +79,42 @@ const LoveConnectApp = () => {
 
     // Presence calculation (keeps boolean up to date from lastSeen)
     const { matches: matchesWithPresence } = usePresence(matches);
+
+    // Verificar si hay usuario logueado al iniciar
+    useEffect(() => {
+        const user = authService.getCurrentUser();
+        if (user) {
+            setIsLoggedIn(true);
+            setCurrentUser(user);
+        }
+    }, []);
+
+    // Manejar login exitoso
+    const handleLoginSuccess = (user) => {
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        
+        // Verificar si es la primera vez del usuario
+        if (authService.isFirstTime(user.id)) {
+            setShowWelcome(true);
+        }
+    };
+
+    // Manejar aceptación de bienvenida
+    const handleWelcomeAccept = () => {
+        if (currentUser) {
+            authService.markWelcomeSeen(currentUser.id);
+        }
+        setShowWelcome(false);
+    };
+
+    // Manejar logout
+    const handleLogout = () => {
+        authService.logout();
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        setCurrentScreen('discover');
+    };
 
     // Perfiles de ejemplo
     const profiles = [
@@ -497,6 +539,11 @@ const LoveConnectApp = () => {
         <BottomNav current={currentScreen} onChange={setCurrentScreen} />
     );
 
+    // Si no está logueado, mostrar pantalla de login
+    if (!isLoggedIn) {
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    }
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -513,13 +560,28 @@ const LoveConnectApp = () => {
                     )
                 )}
                 {currentScreen === 'settings' && (
-                    <View style={styles.placeholderContainer}>
-                        <Text>Ajustes</Text>
+                    <View style={styles.settingsContainer}>
+                        <View style={styles.userProfile}>
+                            <Text style={styles.userName}>{currentUser?.name}</Text>
+                            <Text style={styles.userEmail}>{currentUser?.email}</Text>
+                            <Text style={styles.userAge}>Edad: {currentUser?.age} años</Text>
+                            {currentUser?.bio && (
+                                <Text style={styles.userBio}>{currentUser.bio}</Text>
+                            )}
+                        </View>
+                        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                            <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
             </View>
 
             {renderBottomNav()}
+            
+            <WelcomeModal 
+                visible={showWelcome} 
+                onAccept={handleWelcomeAccept} 
+            />
         </View>
     );
 };
@@ -837,6 +899,54 @@ const styles = StyleSheet.create({
     },
     navButton: {
         padding: 10,
+    },
+    settingsContainer: {
+        flex: 1,
+        padding: 20,
+    },
+    userProfile: {
+        backgroundColor: '#f9f9f9',
+        borderRadius: 12,
+        padding: 20,
+        marginBottom: 30,
+    },
+    userName: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 5,
+    },
+    userEmail: {
+        fontSize: 16,
+        color: '#666',
+        marginBottom: 5,
+    },
+    userAge: {
+        fontSize: 16,
+        color: '#666',
+        marginBottom: 10,
+    },
+    userBio: {
+        fontSize: 14,
+        color: '#333',
+        fontStyle: 'italic',
+        lineHeight: 20,
+    },
+    logoutButton: {
+        backgroundColor: '#FF5A5F',
+        borderRadius: 12,
+        paddingVertical: 16,
+        alignItems: 'center',
+        shadowColor: '#FF5A5F',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    logoutButtonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
     },
 });
 
