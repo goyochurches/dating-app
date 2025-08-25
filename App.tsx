@@ -16,6 +16,13 @@ if (!process.hrtime) (process as any).hrtime = () => [0, 0] as [number, number];
 import { Video as ExpoVideo } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import { X as CloseIcon, Heart, Image as ImageIcon, MapPin, MessageCircle, Send, Settings, User, Video, X } from 'lucide-react-native';
+import { ChatHeader } from './src/components/ChatHeader';
+import { MatchItem } from './src/components/MatchItem';
+import { MessageBubble } from './src/components/MessageBubble';
+import { MediaPreview } from './src/components/MediaPreview';
+import { BottomNav } from './src/components/BottomNav';
+import { usePresence } from './src/hooks/usePresence';
+import { getRandomResponse } from './src/utils/responses';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -33,14 +40,18 @@ const LoveConnectApp = () => {
             name: "Isabella",
             image: 'https://randomuser.me/api/portraits/women/44.jpg',
             lastMessage: "¡Hola! ¿Cómo estás?",
-            time: "10:30 AM"
+            time: "10:30 AM",
+            online: true,
+            lastSeen: new Date().toISOString()
         },
         {
             id: 2,
             name: "Carlos",
             image: 'https://randomuser.me/api/portraits/men/32.jpg',
             lastMessage: "¿Quedamos esta tarde?",
-            time: "Ayer"
+            time: "Ayer",
+            online: false,
+            lastSeen: new Date(Date.now() - 1000 * 60 * 15).toISOString()
         }
     ]);
     const [chatMessages, setChatMessages] = useState({
@@ -59,6 +70,9 @@ const LoveConnectApp = () => {
     const [newMessage, setNewMessage] = useState('');
     const [selectedMedia, setSelectedMedia] = useState(null);
     const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
+
+    // Presence calculation (keeps boolean up to date from lastSeen)
+    const { matches: matchesWithPresence } = usePresence(matches);
 
     // Perfiles de ejemplo
     const profiles = [
@@ -90,7 +104,9 @@ const LoveConnectApp = () => {
             name: currentProfile.name,
             image: currentProfile.image,
             lastMessage: "¡Tenéis un match!",
-            time: "Ahora"
+            time: "Ahora",
+            online: true,
+            lastSeen: new Date().toISOString()
         };
 
         setMatches([...matches, newMatch]);
@@ -193,18 +209,7 @@ const LoveConnectApp = () => {
         }, 1000);
     };
 
-    // Generar respuestas aleatorias
-    const getRandomResponse = () => {
-        const responses = [
-            "¡Hola! ¿Cómo estás?",
-            "¡Me encanta hablar contigo!",
-            "¿Qué planes tienes para hoy?",
-            "¡Qué interesante! Cuéntame más.",
-            "¿Te gustaría quedar algún día?",
-            "¡Jajaja, qué gracioso!"
-        ];
-        return responses[Math.floor(Math.random() * responses.length)];
-    };
+    // getRandomResponse imported from src/utils/responses
 
     // Referencia para el ScrollView
     const scrollViewRef = useRef<ScrollView>(null);
@@ -219,7 +224,8 @@ const LoveConnectApp = () => {
     // Renderizar la pantalla de chat
     const renderChatScreen = () => {
         const messages = chatMessages[selectedChat] || [];
-        const match = matches.find(m => m.id === selectedChat);
+        const match = matchesWithPresence.find(m => m.id === selectedChat);
+        const isOnline = match?.online;
 
         const renderMessageContent = (message) => (
             <>
@@ -261,7 +267,7 @@ const LoveConnectApp = () => {
                     >
                         <Text style={styles.backButtonText}>←</Text>
                     </TouchableOpacity>
-                    <Text style={styles.chatTitle}>{match?.name || 'Chat'}</Text>
+                    <ChatHeader title={match?.name || 'Chat'} online={isOnline} />
                     <View style={{ width: 40 }} />
                 </View>
                 <ScrollView
@@ -275,16 +281,16 @@ const LoveConnectApp = () => {
                     }}
                 >
                     {messages.map((message) => (
-                        <View
-                            key={message.id}
-                            style={[
-                                styles.messageBubble,
-                                message.sent ? styles.sentMessage : styles.receivedMessage
-                            ]}
-                        >
-                            {renderMessageContent(message)}
-                            <Text style={styles.messageTime}>{message.timestamp}</Text>
-                        </View>
+                        <MessageBubble key={message.id} sent={!!message.sent} timestamp={message.timestamp}>
+                            {!!message.media && !!message.mediaType && (
+                                <MediaPreview uri={message.media} type={message.mediaType} />
+                            )}
+                            {!!message.text && (
+                                <Text style={[styles.messageText, message.sent ? styles.sentMessageText : styles.receivedMessage]}>
+                                    {message.text}
+                                </Text>
+                            )}
+                        </MessageBubble>
                     ))}
                 </ScrollView>
 
@@ -344,28 +350,8 @@ const LoveConnectApp = () => {
     // Renderizar la lista de matches
     const renderMatchesList = () => (
         <ScrollView style={styles.matchesList}>
-            {matches.map((match) => (
-                <TouchableOpacity
-                    key={match.id}
-                    style={styles.matchItem}
-                    onPress={() => setSelectedChat(match.id)}
-                >
-                    <Image
-                        source={{ uri: match.image }}
-                        style={styles.matchImage}
-                    />
-                    <View style={styles.matchInfo}>
-                        <Text style={styles.matchName}>{match.name}</Text>
-                        <Text
-                            style={styles.matchLastMessage}
-                            numberOfLines={1}
-                            ellipsizeMode="tail"
-                        >
-                            {match.lastMessage}
-                        </Text>
-                    </View>
-                    <Text style={styles.matchTime}>{match.time}</Text>
-                </TouchableOpacity>
+            {matchesWithPresence.map((match) => (
+                <MatchItem key={match.id} match={match} onPress={setSelectedChat} />
             ))}
         </ScrollView>
     );
@@ -508,26 +494,7 @@ const LoveConnectApp = () => {
 
     // Renderizar la barra de navegación inferior
     const renderBottomNav = () => (
-        <View style={styles.bottomNav}>
-            <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => setCurrentScreen('discover')}
-            >
-                <User size={24} color={currentScreen === 'discover' ? '#FF5A5F' : '#666'} />
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => setCurrentScreen('messages')}
-            >
-                <MessageCircle size={24} color={currentScreen === 'messages' ? '#FF5A5F' : '#666'} />
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => setCurrentScreen('settings')}
-            >
-                <Settings size={24} color={currentScreen === 'settings' ? '#FF5A5F' : '#666'} />
-            </TouchableOpacity>
-        </View>
+        <BottomNav current={currentScreen} onChange={setCurrentScreen} />
     );
 
     return (
@@ -706,6 +673,22 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#333',
+    },
+    statusRow: {
+        marginTop: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 6,
+    },
+    statusText: {
+        fontSize: 12,
+        color: '#666',
     },
     messagesContainer: {
         flex: 1,
