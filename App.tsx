@@ -550,6 +550,9 @@ const LoveConnectApp = () => {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>LoveConnect</Text>
+                <View style={styles.userNameContainer}>
+                    <Text style={styles.userNameText}>Hola, {currentUser?.name}</Text>
+                </View>
             </View>
 
             <View style={styles.content}>
@@ -599,12 +602,27 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     headerTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        textAlign: 'center',
         color: '#FF5A5F',
+        flex: 1,
+        textAlign: 'center',
+    },
+    userNameContainer: {
+        position: 'absolute',
+        right: 20,
+        top: 70,
+        paddingTop: 15,
+    },
+    userNameText: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
     },
     content: {
         flex: 1,

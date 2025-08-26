@@ -15,7 +15,23 @@ import { Camera, Upload, Copy, User, ArrowRight, ArrowLeft, Heart } from 'lucide
 export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showError, setShowError] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Agregar listener global para paste
+  React.useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleGlobalPaste = (event) => {
+        handlePaste(event);
+      };
+      
+      document.addEventListener('paste', handleGlobalPaste);
+      
+      return () => {
+        document.removeEventListener('paste', handleGlobalPaste);
+      };
+    }
+  }, []);
 
   // Solicitar permisos para la galería
   const requestPermissions = async () => {
@@ -49,6 +65,7 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
 
       if (!result.canceled && result.assets[0]) {
         setSelectedImage(result.assets[0].uri);
+        setShowError(false); // Limpiar error al seleccionar imagen
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudo seleccionar la imagen');
@@ -60,19 +77,28 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
 
   // Manejar pegado de imagen (principalmente para web)
   const handlePaste = async (event) => {
+    console.log('PhotoUploadStep - handlePaste called', event);
     if (Platform.OS !== 'web') return;
     
+    event.preventDefault();
+    
     const items = event.clipboardData?.items;
+    console.log('PhotoUploadStep - clipboard items:', items);
     if (!items) return;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      console.log('PhotoUploadStep - checking item:', item.type);
       if (item.type.indexOf('image') !== -1) {
+        console.log('PhotoUploadStep - found image item');
         const file = item.getAsFile();
         if (file) {
+          console.log('PhotoUploadStep - processing file:', file.name);
           const reader = new FileReader();
           reader.onload = (e) => {
+            console.log('PhotoUploadStep - image loaded successfully');
             setSelectedImage(e.target.result);
+            setShowError(false); // Limpiar error al pegar imagen
           };
           reader.readAsDataURL(file);
         }
@@ -89,6 +115,7 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
         const reader = new FileReader();
         reader.onload = (e) => {
           setSelectedImage(e.target.result);
+          setShowError(false); // Limpiar error al subir archivo
         };
         reader.readAsDataURL(file);
       } else {
@@ -99,11 +126,15 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
 
   // Continuar al siguiente paso
   const handleNext = () => {
+    console.log('PhotoUploadStep - handleNext called, selectedImage:', selectedImage);
+    
     if (!selectedImage) {
-      Alert.alert('Foto requerida', 'Por favor selecciona una foto de perfil para continuar');
+      console.log('PhotoUploadStep - No image selected, showing error message');
+      setShowError(true);
       return;
     }
 
+    console.log('PhotoUploadStep - Image selected, proceeding to next step');
     const updatedUserData = {
       ...userData,
       profileImage: selectedImage
@@ -112,20 +143,6 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
     onNext(updatedUserData);
   };
 
-  // Saltar este paso (opcional)
-  const handleSkip = () => {
-    Alert.alert(
-      'Saltar foto',
-      '¿Estás seguro de que quieres continuar sin foto de perfil? Puedes agregarla más tarde.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Saltar', 
-          onPress: () => onNext(userData)
-        }
-      ]
-    );
-  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -187,25 +204,41 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
 
         {/* Área de pegado (web) */}
         {Platform.OS === 'web' && (
-          <View 
+          <TouchableOpacity 
             style={styles.pasteArea}
             onPaste={handlePaste}
+            activeOpacity={0.7}
           >
             <Copy size={24} color="#FF5A5F" />
             <Text style={styles.pasteText}>
               O pega una imagen aquí (Ctrl+V)
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
       </View>
+
+      {/* Mensaje de error si no hay foto */}
+      {showError && (
+        <View style={styles.errorMessage}>
+          <Text style={styles.errorText}>
+            La foto de perfil es obligatoria para continuar
+          </Text>
+        </View>
+      )}
 
       {/* Información adicional */}
       <View style={styles.infoContainer}>
         <Text style={styles.infoTitle}>Consejos para tu foto:</Text>
-        <Text style={styles.infoText}>• Usa una foto clara y reciente</Text>
-        <Text style={styles.infoText}>• Asegúrate de que se vea tu rostro</Text>
-        <Text style={styles.infoText}>• Evita fotos con otras personas</Text>
-        <Text style={styles.infoText}>• Una sonrisa siempre ayuda</Text>
+        <Text style={styles.infoText}>• Usa una foto clara y reciente (máximo 6 meses)</Text>
+        <Text style={styles.infoText}>• Asegúrate de que se vea tu rostro claramente</Text>
+        <Text style={styles.infoText}>• Evita fotos con otras personas o mascotas</Text>
+        <Text style={styles.infoText}>• Una sonrisa natural siempre ayuda</Text>
+        <Text style={styles.infoText}>• Buena iluminación (evita fotos muy oscuras)</Text>
+        <Text style={styles.infoText}>• Mira directamente a la cámara</Text>
+        <Text style={styles.infoText}>• Evita filtros excesivos o gafas de sol</Text>
+        <Text style={styles.infoText}>• Viste de forma que te represente</Text>
+        <Text style={styles.infoText}>• Fondo simple y no distractivo</Text>
+        <Text style={styles.infoText}>• Foto de cuerpo entero o desde el pecho hacia arriba</Text>
       </View>
 
       {/* Botones de navegación */}
@@ -220,11 +253,6 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
           <ArrowRight size={20} color="#fff" />
         </TouchableOpacity>
       </View>
-
-      {/* Botón saltar */}
-      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipButtonText}>Saltar por ahora</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -311,15 +339,15 @@ const styles = StyleSheet.create({
     borderColor: '#FF5A5F',
     borderStyle: 'dashed',
     borderRadius: 12,
-    paddingVertical: 20,
+    paddingVertical: 15,
     paddingHorizontal: 20,
     marginTop: 10,
   },
   pasteText: {
     marginLeft: 10,
-    fontSize: 14,
+    fontSize: 16,
     color: '#FF5A5F',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   infoContainer: {
     backgroundColor: '#f8f9fa',
@@ -380,14 +408,35 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-  skipButton: {
+  requiredMessage: {
     alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff5f5',
+    borderRadius: 8,
+    paddingVertical: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF5A5F',
+  },
+  requiredText: {
+    fontSize: 18,
+    color: '#FF5A5F',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  errorMessage: {
+    alignItems: 'center',
+    marginTop: 15,
+    marginBottom: 20,
+    paddingHorizontal: 15,
     paddingVertical: 10,
   },
-  skipButtonText: {
-    fontSize: 14,
-    color: '#999',
-    textDecorationLine: 'underline',
+  errorText: {
+    fontSize: 16,
+    color: '#FF0000',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 
