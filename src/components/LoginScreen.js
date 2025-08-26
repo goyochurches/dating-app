@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,22 +11,23 @@ import {
   ScrollView,
   ActivityIndicator
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react-native';
 import { authService } from '../services/authService';
 import RegisterForm from './RegisterForm';
 
 export const LoginScreen = ({ onLoginSuccess }) => {
   // Verificar si hay un registro en progreso
-  const checkRegistrationInProgress = () => {
+  const checkRegistrationInProgress = async () => {
     try {
-      const saved = localStorage.getItem('loveconnect_registration_progress');
+      const saved = await AsyncStorage.getItem('loveconnect_registration_progress');
       return saved !== null;
     } catch (error) {
       return false;
     }
   };
 
-  const [isLogin, setIsLogin] = useState(!checkRegistrationInProgress());
+  const [isLogin, setIsLogin] = useState(true); // Inicializar como true por defecto
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -43,6 +44,15 @@ export const LoginScreen = ({ onLoginSuccess }) => {
   const [errors, setErrors] = useState({});
   const [emailChecking, setEmailChecking] = useState(false);
   const [loginError, setLoginError] = useState('');
+
+  // Verificar estado de registro al montar el componente
+  useEffect(() => {
+    const checkInitialState = async () => {
+      const hasRegistrationInProgress = await checkRegistrationInProgress();
+      setIsLogin(!hasRegistrationInProgress);
+    };
+    checkInitialState();
+  }, []);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -28,7 +28,7 @@ import { getRandomResponse } from './src/utils/responses';
 import { authService } from './src/services/authService';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
@@ -543,16 +543,11 @@ const LoveConnectApp = () => {
 
     // Si no está logueado, mostrar pantalla de login
     if (!isLoggedIn) {
-        return (
-            <GestureHandlerRootView style={{ flex: 1 }}>
-                <LoginScreen onLoginSuccess={handleLoginSuccess} />
-            </GestureHandlerRootView>
-        );
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
     }
 
     return (
-        <GestureHandlerRootView style={{ flex: 1 }}>
-            <View style={styles.container}>
+        <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>LoveConnect</Text>
                 <View style={styles.userNameContainer}>
@@ -592,8 +587,7 @@ const LoveConnectApp = () => {
                 visible={showWelcome} 
                 onAccept={handleWelcomeAccept} 
             />
-            </View>
-        </GestureHandlerRootView>
+        </View>
     );
 };
 

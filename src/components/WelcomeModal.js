@@ -82,13 +82,17 @@ export const WelcomeModal = ({ visible, onAccept }) => {
             </View>
 
             {/* Accept Button */}
-            <TouchableOpacity style={styles.acceptButton} onPress={onAccept}>
+            <TouchableOpacity 
+              style={styles.acceptButton} 
+              onPress={onAccept}
+              activeOpacity={0.8}
+            >
               <CheckCircle size={24} color="#fff" />
-              <Text style={styles.acceptButtonText}>Entiendo y acepto</Text>
+              <Text style={styles.acceptButtonText}>¡Comenzar mi experiencia!</Text>
             </TouchableOpacity>
 
             <Text style={styles.footerText}>
-              Al continuar, confirmas que compartes estos valores
+              Al continuar, confirmas que compartes estos valores y estás listo para encontrar conexiones auténticas
             </Text>
           </ScrollView>
         </View>
@@ -196,15 +200,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 30,
-    borderRadius: 12,
+    borderRadius: 15,
     marginBottom: 15,
     shadowColor: '#FF5A5F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+    transform: [{ scale: 1 }],
   },
   acceptButtonText: {
     color: '#fff',
