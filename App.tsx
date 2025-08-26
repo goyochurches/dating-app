@@ -91,6 +91,7 @@ const LoveConnectApp = () => {
 
     // Manejar login exitoso
     const handleLoginSuccess = (user) => {
+        console.log('App.tsx - handleLoginSuccess called with user:', user);
         setCurrentUser(user);
         setIsLoggedIn(true);
         
@@ -98,6 +99,7 @@ const LoveConnectApp = () => {
         if (authService.isFirstTime(user.id)) {
             setShowWelcome(true);
         }
+        console.log('App.tsx - User logged in successfully, isLoggedIn set to true');
     };
 
     // Manejar aceptación de bienvenida

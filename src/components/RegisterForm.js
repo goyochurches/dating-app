@@ -15,6 +15,7 @@ import LocationStep from './LocationStep';
 import RelationshipTypeStep from './RelationshipTypeStep';
 import EthnicityStep from './EthnicityStep';
 import ReligionStep from './ReligionStep';
+import { authService } from '../services/authService';
 
 export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   const [currentStep, setCurrentStep] = useState(1); // 1: datos básicos, 2: foto, 3: rango edad, 4: ubicación, 5: tipo relación, 6: origen étnico, 7: religión
@@ -173,24 +174,13 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   const handleReligionNext = async (userData) => {
     setLoading(true);
     try {
-      // Registrar usuario con todos los datos completos
-      const authService = require('../services/authService').default;
       console.log('RegisterForm - Iniciando registro final con datos:', userData);
       
       const result = await authService.register(userData);
       
       if (result.success) {
-        console.log('RegisterForm - Registro exitoso, redirigiendo a la aplicación');
-        Alert.alert(
-          '¡Registro Completado!', 
-          'Tu cuenta ha sido creada exitosamente. Bienvenido a LoveConnect.',
-          [
-            {
-              text: 'Ir a la Aplicación',
-              onPress: () => onRegisterSuccess(result.user)
-            }
-          ]
-        );
+        console.log('RegisterForm - Registro exitoso, llamando onRegisterSuccess');
+        onRegisterSuccess(result.user);
       } else {
         Alert.alert('Error', result.message);
       }
