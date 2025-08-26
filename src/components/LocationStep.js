@@ -87,16 +87,17 @@ const locationData = {
 
 const distanceOptions = [50, 100, 150, 200, 250, 500, 1000];
 
-const LocationStep = ({ userData, onNext, onBack }) => {
+export const LocationStep = ({ userData, onNext, onBack }) => {
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
-  const [selectedDistance, setSelectedDistance] = useState(100);
-  
+  const [maxDistance, setMaxDistance] = useState(50);
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showStateModal, setShowStateModal] = useState(false);
   const [showCityModal, setShowCityModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   // Resetear estado y ciudad cuando cambia el país
   useEffect(() => {
@@ -113,16 +114,84 @@ const LocationStep = ({ userData, onNext, onBack }) => {
     }
   }, [selectedState]);
 
+  // Auto-detectar ubicación por IP al cargar el componente
+  useEffect(() => {
+    const detectLocationByIP = async () => {
+      setIsLoadingLocation(true);
+      try {
+        // Usar ipapi.co para obtener ubicación por IP
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        
+        if (data && data.country_name && data.region && data.city) {
+          // Mapear nombres de países a nuestros datos
+          const countryMapping = {
+            'Spain': 'España',
+            'France': 'Francia',
+            'Italy': 'Italia',
+            'Portugal': 'Portugal',
+            'United Kingdom': 'Reino Unido',
+            'Germany': 'Alemania',
+            'Mexico': 'México',
+            'Argentina': 'Argentina',
+            'Colombia': 'Colombia'
+          };
+          
+          const detectedCountry = countryMapping[data.country_name] || data.country_name;
+          
+          // Verificar si el país detectado existe en nuestros datos
+          if (locationData[detectedCountry]) {
+            setSelectedCountry(detectedCountry);
+            
+            // Buscar el estado/región más similar
+            const states = Object.keys(locationData[detectedCountry]);
+            const detectedState = states.find(state => 
+              state.toLowerCase().includes(data.region.toLowerCase()) ||
+              data.region.toLowerCase().includes(state.toLowerCase())
+            );
+            
+            if (detectedState) {
+              setSelectedState(detectedState);
+              
+              // Buscar la ciudad más similar
+              const cities = locationData[detectedCountry][detectedState];
+              const detectedCity = cities.find(city =>
+                city.toLowerCase().includes(data.city.toLowerCase()) ||
+                data.city.toLowerCase().includes(city.toLowerCase())
+              );
+              
+              if (detectedCity) {
+                setSelectedCity(detectedCity);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log('No se pudo detectar la ubicación automáticamente:', error);
+        // Silenciosamente fallar - el usuario puede seleccionar manualmente
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    };
+
+    detectLocationByIP();
+  }, []);
+
   const countries = Object.keys(locationData);
   const states = selectedCountry ? Object.keys(locationData[selectedCountry] || {}) : [];
   const cities = selectedCountry && selectedState ? locationData[selectedCountry][selectedState] || [] : [];
 
-  const renderDropdown = (title, value, placeholder, onPress, disabled = false) => (
+  const renderDropdown = (title, value, placeholder, onPress, disabled = false, fieldName) => (
     <View style={styles.dropdownContainer}>
       <Text style={styles.dropdownLabel}>{title}</Text>
       <TouchableOpacity
-        style={[styles.dropdown, disabled && styles.dropdownDisabled]}
-        onPress={onPress}
+        style={[styles.dropdown, disabled && styles.dropdownDisabled, errors[fieldName] && styles.dropdownError]}
+        onPress={() => {
+          if (errors[fieldName]) {
+            setErrors(prev => ({ ...prev, [fieldName]: '' }));
+          }
+          onPress();
+        }}
         disabled={disabled}
       >
         <Text style={[styles.dropdownText, !value && styles.dropdownPlaceholder]}>
@@ -130,6 +199,7 @@ const LocationStep = ({ userData, onNext, onBack }) => {
         </Text>
         <ChevronDown size={20} color={disabled ? "#ccc" : "#666"} />
       </TouchableOpacity>
+      {errors[fieldName] && <Text style={styles.errorText}>{errors[fieldName]}</Text>}
     </View>
   );
 
@@ -171,10 +241,23 @@ const LocationStep = ({ userData, onNext, onBack }) => {
 
   const handleNext = () => {
     console.log('LocationStep - handleNext called');
-    console.log('Selected values:', { selectedCountry, selectedState, selectedCity, selectedDistance });
+    console.log('Selected values:', { selectedCountry, selectedState, selectedCity, maxDistance });
+    
+    const newErrors = {};
     
     if (!selectedCountry) {
-      alert('Por favor selecciona al menos un país');
+      newErrors.country = 'Por favor selecciona un país';
+    }
+    if (!selectedState) {
+      newErrors.state = 'Por favor selecciona un estado o provincia';
+    }
+    if (!selectedCity) {
+      newErrors.city = 'Por favor selecciona una ciudad';
+    }
+    
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
       return;
     }
 
@@ -182,9 +265,9 @@ const LocationStep = ({ userData, onNext, onBack }) => {
       ...userData,
       location: {
         country: selectedCountry,
-        state: selectedState || '',
-        city: selectedCity || '',
-        maxDistance: selectedDistance
+        state: selectedState,
+        city: selectedCity,
+        maxDistance: maxDistance
       }
     };
 
@@ -198,7 +281,8 @@ const LocationStep = ({ userData, onNext, onBack }) => {
         <Heart size={32} color="#FF5A5F" fill="#FF5A5F" />
         <Text style={styles.title}>Ubicación Preferida</Text>
         <Text style={styles.subtitle}>
-          Paso 4 de 7: ¿Cuál es el lugar preferido para encontrar pareja?
+          Paso 3 de 7: Ayúdanos a encontrar personas cerca de ti
+          {isLoadingLocation && ' (Detectando ubicación...)'}
         </Text>
         <Text style={styles.description}>
           ¿Buscas a alguien cercano por conveniencia o abierto a explorar conexiones a través de las fronteras?
@@ -216,7 +300,9 @@ const LocationStep = ({ userData, onNext, onBack }) => {
           'País',
           selectedCountry,
           'Selecciona un país',
-          () => setShowCountryModal(true)
+          () => setShowCountryModal(true),
+          false,
+          'country'
         )}
 
         {renderDropdown(
@@ -224,7 +310,8 @@ const LocationStep = ({ userData, onNext, onBack }) => {
           selectedState,
           'Selecciona estado/provincia',
           () => setShowStateModal(true),
-          !selectedCountry
+          !selectedCountry,
+          'state'
         )}
 
         {renderDropdown(
@@ -232,7 +319,8 @@ const LocationStep = ({ userData, onNext, onBack }) => {
           selectedCity,
           'Selecciona una ciudad',
           () => setShowCityModal(true),
-          !selectedState
+          !selectedState,
+          'city'
         )}
 
         {/* Selector de distancia */}
@@ -242,7 +330,7 @@ const LocationStep = ({ userData, onNext, onBack }) => {
             style={styles.distanceSelector}
             onPress={() => setShowDistanceModal(true)}
           >
-            <Text style={styles.distanceText}>{selectedDistance} km</Text>
+            <Text style={styles.distanceText}>{maxDistance} km</Text>
             <ChevronDown size={20} color="#666" />
           </TouchableOpacity>
         </View>
@@ -256,7 +344,7 @@ const LocationStep = ({ userData, onNext, onBack }) => {
             Buscando en <Text style={styles.summaryHighlight}>{selectedCity}, {selectedState}, {selectedCountry}</Text>
           </Text>
           <Text style={styles.summaryText}>
-            Hasta <Text style={styles.summaryHighlight}>{selectedDistance} km</Text> de distancia
+            Hasta <Text style={styles.summaryHighlight}>{maxDistance} km</Text> de distancia
           </Text>
         </View>
       )}
@@ -401,6 +489,17 @@ const styles = StyleSheet.create({
   dropdownPlaceholder: {
     color: '#999',
   },
+  dropdownError: {
+    borderColor: '#FF5A5F',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#FF5A5F',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 5,
+    marginLeft: 5,
+  },
   distanceContainer: {
     marginTop: 10,
   },
@@ -415,7 +514,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FF5A5F',
+    borderColor: '#ddd',
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
@@ -423,7 +522,7 @@ const styles = StyleSheet.create({
   },
   distanceText: {
     fontSize: 16,
-    color: '#FF5A5F',
+    color: '#333',
     fontWeight: '600',
   },
   summaryContainer: {

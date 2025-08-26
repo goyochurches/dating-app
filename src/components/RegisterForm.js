@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ScrollView
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { User, Mail, Lock, ArrowLeft, Heart, Calendar, Check } from 'lucide-react-native';
 import PhotoUploadStep from './PhotoUploadStep';
@@ -18,27 +19,68 @@ import ReligionStep from './ReligionStep';
 import { authService } from '../services/authService';
 
 export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
-  const [currentStep, setCurrentStep] = useState(1); // 1: datos básicos, 2: foto, 3: rango edad, 4: ubicación, 5: tipo relación, 6: origen étnico, 7: religión
+  // Cargar datos guardados del localStorage
+  const loadRegistrationProgress = () => {
+    try {
+      const saved = localStorage.getItem('loveconnect_registration_progress');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          step: parsed.step || 1,
+          data: parsed.data || {}
+        };
+      }
+    } catch (error) {
+      console.error('Error loading registration progress:', error);
+    }
+    return { step: 1, data: {} };
+  };
+
+  const savedProgress = loadRegistrationProgress();
+  
+  const [currentStep, setCurrentStep] = useState(savedProgress.step);
   const [formData, setFormData] = useState({
-    name: '',
-    gender: '', // 'hombre' o 'mujer'
-    lookingFor: '', // 'hombre' o 'mujer'
-    age: '',
-    email: '',
-    confirmEmail: '',
-    password: '',
-    confirmPassword: '',
-    acceptTerms: false,
-    profileImage: null,
-    preferredAgeRange: { min: 18, max: 35 },
-    location: { country: '', state: '', city: '', maxDistance: 100 },
-    relationshipTypes: [],
-    ethnicity: '',
-    religion: ''
+    name: savedProgress.data.name || '',
+    gender: savedProgress.data.gender || '',
+    lookingFor: savedProgress.data.lookingFor || '',
+    age: savedProgress.data.age || '',
+    email: savedProgress.data.email || '',
+    confirmEmail: savedProgress.data.confirmEmail || '',
+    password: savedProgress.data.password || '',
+    confirmPassword: savedProgress.data.confirmPassword || '',
+    acceptTerms: savedProgress.data.acceptTerms || false,
+    profileImage: savedProgress.data.profileImage || null,
+    preferredAgeRange: savedProgress.data.preferredAgeRange || { min: 18, max: 35 },
+    location: savedProgress.data.location || { country: '', state: '', city: '', maxDistance: 100 },
+    relationshipTypes: savedProgress.data.relationshipTypes || [],
+    ethnicity: savedProgress.data.ethnicity || '',
+    religion: savedProgress.data.religion || ''
   });
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  // Guardar progreso en localStorage
+  const saveRegistrationProgress = (step, data) => {
+    try {
+      localStorage.setItem('loveconnect_registration_progress', JSON.stringify({
+        step,
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.error('Error saving registration progress:', error);
+    }
+  };
+
+  // Limpiar progreso guardado
+  const clearRegistrationProgress = () => {
+    try {
+      localStorage.removeItem('loveconnect_registration_progress');
+    } catch (error) {
+      console.error('Error clearing registration progress:', error);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -120,68 +162,109 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    // Pasar al paso 2 (foto)
-    setCurrentStep(2);
+    // Verificar que el email no esté ya registrado antes de continuar
+    setLoading(true);
+    try {
+      const emailCheck = await authService.checkEmailExists(formData.email);
+      if (emailCheck.exists) {
+        setErrors(prev => ({ 
+          ...prev, 
+          email: 'Ya existe una cuenta con este email. ¿Quieres iniciar sesión?' 
+        }));
+        return;
+      }
+      
+      // Si el email no existe, continuar al paso 2 (foto)
+      setCurrentStep(2);
+      saveRegistrationProgress(2, formData);
+    } catch (error) {
+      console.error('Error verificando email:', error);
+      Alert.alert('Error', 'No se pudo verificar el email. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePhotoStepNext = (userData) => {
     setFormData(userData);
     setCurrentStep(3);
+    saveRegistrationProgress(3, userData);
   };
 
   const handlePhotoStepBack = () => {
     setCurrentStep(1);
+    saveRegistrationProgress(1, formData);
   };
 
   const handleAgeRangeNext = (userData) => {
     setFormData(userData);
     setCurrentStep(4);
+    saveRegistrationProgress(4, userData);
   };
 
   const handleAgeRangeBack = () => {
     setCurrentStep(2);
+    saveRegistrationProgress(2, formData);
   };
 
   const handleLocationNext = (userData) => {
-    console.log('RegisterForm - handleLocationNext called with:', userData);
     setFormData(userData);
     console.log('RegisterForm - changing to step 5');
     setCurrentStep(5);
+    saveRegistrationProgress(5, userData);
   };
 
   const handleLocationBack = () => {
     setCurrentStep(3);
+    saveRegistrationProgress(3, formData);
   };
 
   const handleRelationshipTypeNext = (userData) => {
     setFormData(userData);
     setCurrentStep(6);
+    saveRegistrationProgress(6, userData);
   };
 
   const handleRelationshipTypeBack = () => {
     setCurrentStep(4);
+    saveRegistrationProgress(4, formData);
   };
 
   const handleEthnicityNext = (userData) => {
     setFormData(userData);
     setCurrentStep(7);
+    saveRegistrationProgress(7, userData);
   };
 
   const handleEthnicityBack = () => {
     setCurrentStep(5);
+    saveRegistrationProgress(5, formData);
   };
 
   const handleReligionNext = async (userData) => {
+    console.log('RegisterForm - handleReligionNext called with:', userData);
+    
+    // Prevenir múltiples clics
+    if (loading) {
+      console.log('RegisterForm - Ya hay un registro en progreso, ignorando');
+      return;
+    }
+    
     setLoading(true);
     try {
       console.log('RegisterForm - Iniciando registro final con datos:', userData);
       
       const result = await authService.register(userData);
+      console.log('RegisterForm - Resultado del registro:', result);
       
       if (result.success) {
-        console.log('RegisterForm - Registro exitoso, llamando onRegisterSuccess');
+        console.log('RegisterForm - Registro exitoso, limpiando progreso y redirigiendo');
+        clearRegistrationProgress(); // Limpiar progreso guardado
+        
+        // Redirigir directamente a la aplicación con el usuario logueado
         onRegisterSuccess(result.user);
       } else {
+        console.log('RegisterForm - Error en registro:', result.message);
         Alert.alert('Error', result.message);
       }
     } catch (error) {
@@ -194,6 +277,7 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
 
   const handleReligionBack = () => {
     setCurrentStep(6);
+    saveRegistrationProgress(5, formData);
   };
 
   const renderInput = (field, placeholder, icon, keyboardType = 'default', secureTextEntry = false) => (
@@ -367,12 +451,19 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
           onPress={handleSubmit}
           disabled={loading}
         >
-          <Text style={styles.submitButtonText}>
-            Continuar →
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitButtonText}>
+              Continuar →
+            </Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.backButton} onPress={onBackToLogin}>
+        <TouchableOpacity style={styles.backButton} onPress={() => {
+          clearRegistrationProgress();
+          onBackToLogin();
+        }}>
           <Text style={styles.backButtonText}>
             ¿Ya tienes cuenta? Inicia sesión
           </Text>

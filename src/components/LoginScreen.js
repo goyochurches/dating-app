@@ -16,7 +16,17 @@ import { authService } from '../services/authService';
 import RegisterForm from './RegisterForm';
 
 export const LoginScreen = ({ onLoginSuccess }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  // Verificar si hay un registro en progreso
+  const checkRegistrationInProgress = () => {
+    try {
+      const saved = localStorage.getItem('loveconnect_registration_progress');
+      return saved !== null;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const [isLogin, setIsLogin] = useState(!checkRegistrationInProgress());
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -124,17 +134,10 @@ export const LoginScreen = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleRegisterSuccess = async (userData) => {
-    try {
-      const result = await authService.register(userData);
-      if (result.success) {
-        onLoginSuccess(result.user);
-      } else {
-        Alert.alert('Error', result.message);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Algo salió mal durante el registro.');
-    }
+  const handleRegisterSuccess = (user) => {
+    console.log('LoginScreen - handleRegisterSuccess called with user:', user);
+    // El usuario ya está registrado y logueado, solo redirigir
+    onLoginSuccess(user);
   };
 
   const toggleMode = () => {

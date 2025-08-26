@@ -88,21 +88,44 @@ export class AuthService {
       religion
     } = userData;
     
-    // Verificar si el usuario ya existe
-    const existingUser = this.mockUsers.find(u => 
+    // Verificar si el usuario ya existe en mockUsers o registrados
+    const existingInMock = this.mockUsers.find(u => 
       u.email.toLowerCase() === email.toLowerCase()
     );
     
-    if (existingUser) {
+    const registeredUsers = this.loadRegisteredUsers();
+    const existingInRegistered = registeredUsers.find(u => 
+      u.email.toLowerCase() === email.toLowerCase()
+    );
+    
+    if (existingInMock || existingInRegistered) {
       return {
         success: false,
         message: 'Ya existe una cuenta con este email'
       };
     }
 
+    // Verificar si ya existe en usuarios registrados (prevenir doble registro)
+    const registeredUsersCheck = this.loadRegisteredUsers();
+    const alreadyRegistered = registeredUsersCheck.find(u => 
+      u.email.toLowerCase() === email.toLowerCase()
+    );
+    
+    if (alreadyRegistered) {
+      console.log('AuthService - Usuario ya registrado previamente, devolviendo usuario existente');
+      this.currentUser = alreadyRegistered;
+      this.saveSession();
+      return {
+        success: true,
+        user: this.currentUser,
+        message: '¡Cuenta creada exitosamente!'
+      };
+    }
+
     // Crear nuevo usuario con todos los datos del registro
+    const allUsers = this.getAllUsers();
     const newUser = {
-      id: this.mockUsers.length + 1,
+      id: Date.now(), // Usar timestamp para evitar conflictos de ID
       email: email.toLowerCase(),
       password,
       name,
@@ -115,10 +138,11 @@ export class AuthService {
       location,
       relationshipTypes,
       ethnicity,
-      religion
+      religion,
+      registeredAt: new Date().toISOString()
     };
 
-    this.mockUsers.push(newUser);
+    // NO agregar a mockUsers, solo guardar en localStorage
     this.currentUser = { ...newUser };
     delete this.currentUser.password;
     this.saveSession(); // Guardar sesión permanentemente
@@ -136,11 +160,16 @@ export class AuthService {
   async checkEmailExists(email) {
     await this.delay(500);
     
-    const exists = this.mockUsers.some(u => 
+    const existsInMock = this.mockUsers.some(u => 
       u.email.toLowerCase() === email.toLowerCase()
     );
     
-    return { exists };
+    const registeredUsers = this.loadRegisteredUsers();
+    const existsInRegistered = registeredUsers.some(u => 
+      u.email.toLowerCase() === email.toLowerCase()
+    );
+    
+    return { exists: existsInMock || existsInRegistered };
   }
 
   // Logout
@@ -242,6 +271,25 @@ export class AuthService {
   markWelcomeSeen(userId) {
     this.firstTimeUsers.add(userId);
     this.saveWelcomeData(); // Guardar permanentemente
+  }
+
+  // Obtener todos los usuarios registrados (mock + registrados)
+  getAllUsers() {
+    const registeredUsers = this.loadRegisteredUsers();
+    const allUsers = [...this.mockUsers, ...registeredUsers];
+    
+    // Eliminar duplicados por email y remover contraseñas
+    const uniqueUsers = allUsers.reduce((acc, user) => {
+      const existing = acc.find(u => u.email === user.email);
+      if (!existing) {
+        const userCopy = { ...user };
+        delete userCopy.password;
+        acc.push(userCopy);
+      }
+      return acc;
+    }, []);
+    
+    return uniqueUsers;
   }
 }
 
