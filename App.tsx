@@ -21,13 +21,16 @@ import { MatchItem } from './src/components/MatchItem';
 import { MessageBubble } from './src/components/MessageBubble';
 import { MediaPreview } from './src/components/MediaPreview';
 import { BottomNav } from './src/components/BottomNav';
+import { ConnectionStatus } from './src/components/ConnectionStatus';
+import { MatchNotification } from './src/components/MatchNotification';
 import LoginScreen from './src/components/LoginScreen';
 import WelcomeModal from './src/components/WelcomeModal';
 import { usePresence } from './src/hooks/usePresence';
-import { getRandomResponse } from './src/utils/responses';
 import { authService } from './src/services/authService';
+import { useMessaging } from './src/hooks/useMessaging';
+import { likeService } from './src/services/likeService';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -40,45 +43,65 @@ const LoveConnectApp = () => {
     const [currentScreen, setCurrentScreen] = useState('discover');
     const [showWelcome, setShowWelcome] = useState(false);
     const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
-    const [matches, setMatches] = useState([
-        {
-            id: 1,
-            name: "Isabella",
-            image: 'https://randomuser.me/api/portraits/women/44.jpg',
-            lastMessage: "¡Hola! ¿Cómo estás?",
-            time: "10:30 AM",
-            online: true,
-            lastSeen: new Date().toISOString()
-        },
-        {
-            id: 2,
-            name: "Carlos",
-            image: 'https://randomuser.me/api/portraits/men/32.jpg',
-            lastMessage: "¿Quedamos esta tarde?",
-            time: "Ayer",
-            online: false,
-            lastSeen: new Date(Date.now() - 1000 * 60 * 15).toISOString()
-        }
-    ]);
-    const [chatMessages, setChatMessages] = useState({
-        1: [
-            { id: 1, text: "¡Hola! ¿Cómo estás?", sent: false, time: "10:30 AM" },
-            { id: 2, text: "¡Hola! Estoy bien, ¿y tú?", sent: true, time: "10:32 AM" },
-            { id: 3, text: "¿Te gustaría salir a tomar algo?", sent: false, time: "10:33 AM" },
-        ],
-        2: [
-            { id: 1, text: "¡Hola! ¿Quedamos hoy?", sent: false, time: "Ayer" },
-            { id: 2, text: "¡Claro! ¿A qué hora?", sent: true, time: "Ayer" },
-            { id: 3, text: "¿Qué tal a las 8?", sent: false, time: "Ayer" },
-        ]
-    });
+    // Hook de mensajería en tiempo real
+    const {
+        conversations,
+        messages,
+        isConnected,
+        createConversation,
+        sendMessage,
+        getConversationMessages,
+        markAsRead,
+        isUserOnline
+    } = useMessaging(currentUser);
     const [selectedChat, setSelectedChat] = useState(null);
     const [newMessage, setNewMessage] = useState('');
     const [selectedMedia, setSelectedMedia] = useState(null);
     const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
+    const [showMatchNotification, setShowMatchNotification] = useState(false);
+    const [matchedProfile, setMatchedProfile] = useState(null);
 
-    // Presence calculation (keeps boolean up to date from lastSeen)
-    const { matches: matchesWithPresence } = usePresence(matches);
+    // Cargar perfiles de usuarios registrados
+    const loadProfiles = async () => {
+        try {
+            const allUsers = await authService.getAllUsers();
+            // Filtrar usuarios excluyendo el usuario actual
+            const otherUsers = allUsers.filter(user => 
+                currentUser && user.id !== currentUser.id
+            ).map(user => {
+                // Convertir location a string si es un objeto
+                let locationString = 'España';
+                if (user.location) {
+                    if (typeof user.location === 'string') {
+                        locationString = user.location;
+                    } else if (typeof user.location === 'object') {
+                        // Si es un objeto, construir string desde las propiedades
+                        const { city, state, country } = user.location;
+                        if (city && state && country) {
+                            locationString = `${city}, ${state}, ${country}`;
+                        } else if (city && country) {
+                            locationString = `${city}, ${country}`;
+                        } else if (country) {
+                            locationString = country;
+                        }
+                    }
+                }
+                
+                return {
+                    id: user.id,
+                    name: user.name,
+                    age: user.age,
+                    location: locationString,
+                    distance: `${Math.floor(Math.random() * 10) + 1} km`,
+                    bio: user.bio || 'Usuario de LoveConnect',
+                    image: user.image
+                };
+            });
+            setProfiles(otherUsers);
+        } catch (error) {
+            console.error('Error loading profiles:', error);
+        }
+    };
 
     // Verificar si hay usuario logueado al iniciar
     useEffect(() => {
@@ -86,14 +109,26 @@ const LoveConnectApp = () => {
         if (user) {
             setIsLoggedIn(true);
             setCurrentUser(user);
+            // Inicializar servicio de likes
+            likeService.initialize(user.id);
         }
     }, []);
+
+    // Cargar perfiles cuando el usuario esté logueado
+    useEffect(() => {
+        if (currentUser) {
+            loadProfiles();
+        }
+    }, [currentUser]);
 
     // Manejar login exitoso
     const handleLoginSuccess = (user) => {
         console.log('App.tsx - handleLoginSuccess called with user:', user);
         setCurrentUser(user);
         setIsLoggedIn(true);
+        
+        // Inicializar servicio de likes
+        likeService.initialize(user.id);
         
         // Verificar si es la primera vez del usuario
         if (authService.isFirstTime(user.id)) {
@@ -110,6 +145,26 @@ const LoveConnectApp = () => {
         setShowWelcome(false);
     };
 
+    // Manejar cierre de notificación de match
+    const handleMatchNotificationClose = () => {
+        setShowMatchNotification(false);
+        setMatchedProfile(null);
+    };
+
+    // Manejar envío de mensaje desde notificación de match
+    const handleMatchSendMessage = () => {
+        setShowMatchNotification(false);
+        setMatchedProfile(null);
+        setCurrentScreen('messages');
+        // Buscar la conversación recién creada y abrirla
+        if (matchedProfile) {
+            const conversation = conversations.find(c => c.partnerId === matchedProfile.id);
+            if (conversation) {
+                setSelectedChat(conversation.id);
+            }
+        }
+    };
+
     // Manejar logout
     const handleLogout = () => {
         authService.logout();
@@ -118,57 +173,36 @@ const LoveConnectApp = () => {
         setCurrentScreen('discover');
     };
 
-    // Perfiles de ejemplo
-    const profiles = [
-        {
-            id: 1,
-            name: "Isabella",
-            age: 24,
-            location: "Madrid",
-            distance: "2 km",
-            bio: "Amante del arte y los viajes. Fotógrafa en mis tiempos libres",
-            image: 'https://randomuser.me/api/portraits/women/44.jpg'
-        },
-        {
-            id: 2,
-            name: "Carlos",
-            age: 28,
-            location: "Barcelona",
-            distance: "5 km",
-            bio: "Programador y amante de la naturaleza",
-            image: 'https://randomuser.me/api/portraits/men/32.jpg'
-        }
-    ];
+    // Estado para perfiles de usuarios registrados
+    const [profiles, setProfiles] = useState([]);
 
     // Manejadores de acciones
-    const handleLike = () => {
+    const handleLike = async () => {
         const currentProfile = profiles[currentProfileIndex];
-        const newMatch = {
-            id: currentProfile.id,
-            name: currentProfile.name,
-            image: currentProfile.image,
-            lastMessage: "¡Tenéis un match!",
-            time: "Ahora",
-            online: true,
-            lastSeen: new Date().toISOString()
-        };
-
-        setMatches([...matches, newMatch]);
-
-        // Inicializar mensajes vacíos para el nuevo match
-        setChatMessages(prev => ({
-            ...prev,
-            [currentProfile.id]: [
-                {
-                    id: 1,
-                    text: "¡Hola! Ahora podéis chatear.",
-                    sent: false,
-                    time: "Ahora"
-                }
-            ]
-        }));
-
-        goToNextProfile();
+        
+        try {
+            // Dar like al perfil
+            const likeResult = await likeService.likeProfile(currentProfile.id);
+            
+            // Solo crear conversación y mostrar notificación si hay match mutuo
+            if (likeResult.isMatch) {
+                // Mostrar notificación de match
+                setMatchedProfile(currentProfile);
+                setShowMatchNotification(true);
+                
+                // Crear nueva conversación real
+                await createConversation(
+                    currentProfile.id,
+                    currentProfile.name,
+                    currentProfile.image
+                );
+            }
+            
+            goToNextProfile();
+        } catch (error) {
+            console.error('Error handling like:', error);
+            goToNextProfile();
+        }
     };
 
     const handleDislike = () => {
@@ -176,11 +210,17 @@ const LoveConnectApp = () => {
     };
 
     const goToNextProfile = () => {
+        if (profiles.length === 0) {
+            // No hay perfiles disponibles
+            return;
+        }
+        
         if (currentProfileIndex < profiles.length - 1) {
             setCurrentProfileIndex(currentProfileIndex + 1);
         } else {
-            // Volver al primer perfil si llegamos al final
-            setCurrentProfileIndex(0);
+            // No volver al inicio, mantener en el último índice para mostrar mensaje
+            // El renderDiscoverScreen manejará mostrar el mensaje de "no más perfiles"
+            setCurrentProfileIndex(profiles.length);
         }
     };
 
@@ -220,37 +260,19 @@ const LoveConnectApp = () => {
     const handleSendMessage = async () => {
         if (!newMessage.trim() && !selectedMedia) return;
 
-        const newMsg = {
-            id: Date.now(),
-            text: newMessage,
-            sent: true,
-            timestamp: new Date().toISOString(),
-            media: selectedMedia,
-            mediaType: mediaType,
-        };
-
-        setChatMessages(prev => ({
-            ...prev,
-            [selectedChat]: [...(prev[selectedChat] || []), newMsg]
-        }));
-
-        setNewMessage('');
-        clearSelectedMedia();
-
-        // Simular respuesta automática después de 1 segundo
-        setTimeout(async () => {
-            const responseMsg = {
-                id: Date.now() + 1,
-                text: getRandomResponse(),
-                sent: false,
-                timestamp: new Date().toISOString(),
+        try {
+            const messageData = {
+                text: newMessage,
+                media: selectedMedia,
+                mediaType: mediaType,
             };
 
-            setChatMessages(prev => ({
-                ...prev,
-                [selectedChat]: [...(prev[selectedChat] || []), responseMsg]
-            }));
-        }, 1000);
+            await sendMessage(selectedChat, messageData);
+            setNewMessage('');
+            clearSelectedMedia();
+        } catch (error) {
+            console.error('Error sending message:', error);
+        }
     };
 
     // getRandomResponse imported from src/utils/responses
@@ -263,12 +285,19 @@ const LoveConnectApp = () => {
         if (scrollViewRef.current) {
             scrollViewRef.current.scrollToEnd({ animated: true });
         }
-    }, [chatMessages, selectedChat]);
+    }, [messages, selectedChat]);
+
+    // Marcar conversación como leída cuando se abre
+    useEffect(() => {
+        if (selectedChat) {
+            markAsRead(selectedChat);
+        }
+    }, [selectedChat, markAsRead]);
 
     // Renderizar la pantalla de chat
     const renderChatScreen = () => {
-        const messages = chatMessages[selectedChat] || [];
-        const match = matchesWithPresence.find(m => m.id === selectedChat);
+        const chatMessages = getConversationMessages(selectedChat);
+        const match = conversations.find(m => m.id === selectedChat);
         const isOnline = match?.online;
 
         const renderMessageContent = (message) => (
@@ -324,7 +353,7 @@ const LoveConnectApp = () => {
                         }
                     }}
                 >
-                    {messages.map((message) => (
+                    {chatMessages.map((message) => (
                         <MessageBubble key={message.id} sent={!!message.sent} timestamp={message.timestamp}>
                             {!!message.media && !!message.mediaType && (
                                 <MediaPreview uri={message.media} type={message.mediaType} />
@@ -394,20 +423,52 @@ const LoveConnectApp = () => {
     // Renderizar la lista de matches
     const renderMatchesList = () => (
         <ScrollView style={styles.matchesList}>
-            {matchesWithPresence.map((match) => (
-                <MatchItem key={match.id} match={match} onPress={setSelectedChat} />
+            {conversations.map((conversation) => (
+                <MatchItem key={conversation.id} match={conversation} onPress={setSelectedChat} />
             ))}
         </ScrollView>
     );
 
     // Renderizar la pantalla de descubrimiento
     const renderDiscoverScreen = () => {
+        // Verificar si hay perfiles disponibles o si hemos llegado al final
+        if (!profiles || profiles.length === 0 || currentProfileIndex >= profiles.length) {
+            return (
+                <View style={styles.noProfilesContainer}>
+                    <View style={styles.noProfilesIcon}>
+                        <Text style={styles.noProfilesEmoji}>🔍</Text>
+                    </View>
+                    <Text style={styles.noProfilesTitle}>¡Has visto todos los perfiles!</Text>
+                    <Text style={styles.noProfilesSubtitle}>
+                        No hay más personas que coincidan con tus preferencias actuales
+                    </Text>
+                    
+                    <View style={styles.suggestionsContainer}>
+                        <Text style={styles.suggestionsTitle}>💡 Sugerencias para ver más perfiles:</Text>
+                        <View style={styles.suggestionsList}>
+                            <Text style={styles.suggestionItem}>• Aumenta tu rango de distancia</Text>
+                            <Text style={styles.suggestionItem}>• Amplía tu rango de edad preferido</Text>
+                            <Text style={styles.suggestionItem}>• Revisa tus filtros de búsqueda</Text>
+                            <Text style={styles.suggestionItem}>• Vuelve más tarde para nuevos usuarios</Text>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity 
+                        style={styles.refreshButton}
+                        onPress={() => loadProfiles()}
+                    >
+                        <Text style={styles.refreshButtonText}>🔄 Actualizar perfiles</Text>
+                    </TouchableOpacity>
+                </View>
+            );
+        }
+
         const profile = profiles[currentProfileIndex];
         const position = new Animated.ValueXY();
 
         const onGestureEvent = Animated.event(
             [{ nativeEvent: { translationX: position.x, translationY: position.y } }],
-            { useNativeDriver: true }
+            { useNativeDriver: Platform.OS !== 'web' }
         );
 
         const onHandlerStateChange = (event) => {
@@ -424,7 +485,7 @@ const LoveConnectApp = () => {
                     // Reset position if not enough swipe
                     Animated.spring(position, {
                         toValue: { x: 0, y: 0 },
-                        useNativeDriver: true,
+                        useNativeDriver: Platform.OS !== 'web',
                     }).start();
                 }
             }
@@ -436,7 +497,7 @@ const LoveConnectApp = () => {
             Animated.timing(position, {
                 toValue: { x, y: 0 },
                 duration: SWIPE_OUT_DURATION,
-                useNativeDriver: true,
+                useNativeDriver: Platform.OS !== 'web',
             }).start(() => {
                 if (direction === 'right') {
                     handleLike();
@@ -561,6 +622,7 @@ const LoveConnectApp = () => {
             </View>
 
             <View style={styles.content}>
+                <ConnectionStatus isConnected={isConnected} />
                 {currentScreen === 'discover' && renderDiscoverScreen()}
                 {currentScreen === 'messages' && (
                     selectedChat ? (
@@ -592,6 +654,16 @@ const LoveConnectApp = () => {
                 visible={showWelcome} 
                 onAccept={handleWelcomeAccept} 
             />
+            
+            {matchedProfile && (
+                <MatchNotification
+                    visible={showMatchNotification}
+                    currentUser={currentUser}
+                    matchedUser={matchedProfile}
+                    onClose={handleMatchNotificationClose}
+                    onSendMessage={handleMatchSendMessage}
+                />
+            )}
             </View>
         </GestureHandlerRootView>
     );
@@ -638,6 +710,85 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    placeholderText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    placeholderSubtext: {
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
+    },
+    noProfilesContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 30,
+    },
+    noProfilesIcon: {
+        marginBottom: 20,
+    },
+    noProfilesEmoji: {
+        fontSize: 60,
+        textAlign: 'center',
+    },
+    noProfilesTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    noProfilesSubtitle: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 30,
+        lineHeight: 22,
+    },
+    suggestionsContainer: {
+        backgroundColor: '#f8f9fa',
+        borderRadius: 15,
+        padding: 20,
+        marginBottom: 30,
+        width: '100%',
+    },
+    suggestionsTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 15,
+        textAlign: 'center',
+    },
+    suggestionsList: {
+        alignItems: 'flex-start',
+    },
+    suggestionItem: {
+        fontSize: 14,
+        color: '#555',
+        marginBottom: 8,
+        lineHeight: 20,
+    },
+    refreshButton: {
+        backgroundColor: '#FF5A5F',
+        paddingHorizontal: 30,
+        paddingVertical: 15,
+        borderRadius: 25,
+        shadowColor: '#FF5A5F',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    refreshButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
     },
     discoverContainer: {
         flex: 1,

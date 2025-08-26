@@ -6,7 +6,8 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import { Heart, Users, Star, CheckCircle } from 'lucide-react-native';
 
@@ -115,11 +116,20 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     width: '100%',
     maxHeight: height * 0.9,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 20,
+      },
+      web: {
+        boxShadow: '0 10px 20px rgba(0,0,0,0.3)',
+      },
+    }),
   },
   scrollContent: {
     padding: 30,
@@ -204,11 +214,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     borderRadius: 15,
     marginBottom: 15,
-    shadowColor: '#FF5A5F',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FF5A5F',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 10,
+      },
+      web: {
+        boxShadow: '0 6px 12px rgba(255,90,95,0.4)',
+      },
+    }),
     transform: [{ scale: 1 }],
   },
   acceptButtonText: {

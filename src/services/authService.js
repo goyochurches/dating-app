@@ -295,6 +295,18 @@ export class AuthService {
     await this.saveWelcomeData(); // Guardar permanentemente
   }
 
+  // Limpiar todos los usuarios registrados excepto los de ejemplo
+  async clearRegisteredUsers() {
+    try {
+      await AsyncStorage.removeItem('loveconnect_registered_users');
+      await AsyncStorage.removeItem('loveconnect_session');
+      await AsyncStorage.removeItem('loveconnect_welcome_seen');
+      console.log('All registered users cleared, only example users remain');
+    } catch (error) {
+      console.error('Error clearing registered users:', error);
+    }
+  }
+
   // Obtener todos los usuarios registrados (mock + registrados)
   async getAllUsers() {
     const registeredUsers = await this.loadRegisteredUsers();

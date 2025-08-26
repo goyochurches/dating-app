@@ -11,7 +11,7 @@ export const MediaPreview: React.FC<Props> = ({ uri, type }) => {
   return (
     <View style={styles.container}>
       {type === 'image' ? (
-        <Image source={{ uri }} style={styles.mediaPreview} resizeMode="cover" />
+        <Image source={{ uri }} style={styles.mediaPreview} />
       ) : (
         <ExpoVideo source={{ uri }} style={styles.mediaPreview} useNativeControls isLooping />
       )}
@@ -21,5 +21,5 @@ export const MediaPreview: React.FC<Props> = ({ uri, type }) => {
 
 const styles = StyleSheet.create({
   container: { marginBottom: 8, borderRadius: 12, overflow: 'hidden', maxWidth: '80%' },
-  mediaPreview: { width: 250, height: 200, borderRadius: 12 },
+  mediaPreview: { width: 250, height: 200, borderRadius: 12, resizeMode: 'cover' },
 });
