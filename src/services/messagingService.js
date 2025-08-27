@@ -38,14 +38,14 @@ class MessagingService {
       const conversations = [];
       snapshot.forEach(doc => {
         const data = doc.data();
-        const partnerId = data.participants.find(p => p !== this.currentUser.uid);
-        const isPartnerOnline = this.isUserOnline(partnerId);
+        const partnerUid = data.participants.find(p => p !== this.currentUser.uid);
+        const isPartnerOnline = this.isUserOnline(partnerUid);
         conversations.push({ 
           id: doc.id, 
           ...data,
-          partnerId,
-          partnerName: data.participantDetails[partnerId]?.name,
-          partnerImage: data.participantDetails[partnerId]?.avatar,
+          partnerUid,
+          partnerName: data.participantDetails[partnerUid]?.name,
+          partnerAvatar: data.participantDetails[partnerUid]?.avatar,
           partnerIsOnline: isPartnerOnline,
         });
       });
@@ -91,8 +91,8 @@ class MessagingService {
       await setDoc(conversationRef, {
         participants: [this.currentUser.uid, partner.uid],
         participantDetails: {
-          [this.currentUser.uid]: { name: this.currentUser.name, avatar: this.currentUser.image || null },
-          [partner.uid]: { name: partner.name, avatar: partner.image || null },
+          [this.currentUser.uid]: { name: this.currentUser.name, avatar: this.currentUser.profilePictureUrl || null },
+          [partner.uid]: { name: partner.name, avatar: partner.profilePictureUrl || null },
         },
         createdAt: serverTimestamp(),
         lastMessage: '¡Has hecho match! Di hola.',

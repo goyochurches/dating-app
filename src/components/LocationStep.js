@@ -338,14 +338,14 @@ export const LocationStep = ({ userData, onNext, onBack }) => {
       </View>
 
       {/* Resumen de selección */}
-      {selectedCountry && selectedState && selectedCity && (
+      {(selectedCountry && selectedState && selectedCity) && (
         <View style={styles.summaryContainer}>
           <Text style={styles.summaryTitle}>📍 Tu configuración:</Text>
           <Text style={styles.summaryText}>
-            Buscando en <Text style={styles.summaryHighlight}>{selectedCity}, {selectedState}, {selectedCountry}</Text>
+            {`Buscando en ${selectedCity}, ${selectedState}, ${selectedCountry}`}
           </Text>
           <Text style={styles.summaryText}>
-            Hasta <Text style={styles.summaryHighlight}>{maxDistance} km</Text> de distancia
+            {`Hasta ${maxDistance} km de distancia`}
           </Text>
         </View>
       )}
