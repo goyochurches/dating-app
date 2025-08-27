@@ -7,16 +7,19 @@ import {
   Image,
   Alert,
   ScrollView,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Copy, User, ArrowRight, ArrowLeft, Heart } from 'lucide-react-native';
+import FileService from '../services/fileService';
 
 export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
   const [selectedImage, setSelectedImage] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showError, setShowError] = useState(false);
   const fileInputRef = useRef(null);
+  const [imageUrl, setImageUrl] = useState(null);
 
   // Agregar listener global para paste
   React.useEffect(() => {
@@ -53,7 +56,7 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
-    setLoading(true);
+    setUploading(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -64,14 +67,19 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0].uri);
-        setShowError(false); // Limpiar error al seleccionar imagen
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        setShowError(false);
+        
+        // Para desarrollo, no procesar la imagen, solo mostrarla
+        console.log('Imagen seleccionada:', imageUri);
+        setImageUrl(imageUri); // Usar la misma URI para mostrar
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudo seleccionar la imagen');
       console.error('Error picking image:', error);
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -86,6 +94,8 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
     console.log('PhotoUploadStep - clipboard items:', items);
     if (!items) return;
 
+    setUploading(true);
+
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       console.log('PhotoUploadStep - checking item:', item.type);
@@ -95,9 +105,15 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
         if (file) {
           console.log('PhotoUploadStep - processing file:', file.name);
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = async (e) => {
             console.log('PhotoUploadStep - image loaded successfully');
-            setSelectedImage(e.target.result);
+            const imageDataUrl = e.target.result;
+            setSelectedImage(imageDataUrl);
+            
+            // Para desarrollo, usar la imagen base64 directamente
+            console.log('Imagen pegada:', imageDataUrl.substring(0, 50) + '...');
+            setImageUrl(imageDataUrl);
+            setUploading(false);
             setShowError(false); // Limpiar error al pegar imagen
           };
           reader.readAsDataURL(file);
@@ -108,14 +124,21 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
   };
 
   // Manejar subida de archivo (web)
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (file) {
       if (file.type.startsWith('image/')) {
+        setUploading(true);
         const reader = new FileReader();
-        reader.onload = (e) => {
-          setSelectedImage(e.target.result);
-          setShowError(false); // Limpiar error al subir archivo
+        reader.onload = async (e) => {
+          const imageDataUrl = e.target.result;
+          setSelectedImage(imageDataUrl);
+          setShowError(false);
+          
+          // Para desarrollo, usar la imagen base64 directamente
+          console.log('Archivo subido:', imageDataUrl.substring(0, 50) + '...');
+          setImageUrl(imageDataUrl);
+          setUploading(false);
         };
         reader.readAsDataURL(file);
       } else {
@@ -126,7 +149,7 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
 
   // Continuar al siguiente paso
   const handleNext = () => {
-    console.log('PhotoUploadStep - handleNext called, selectedImage:', selectedImage);
+    console.log('PhotoUploadStep - handleNext called, selectedImage:', selectedImage, 'imageUrl:', imageUrl);
     
     if (!selectedImage) {
       console.log('PhotoUploadStep - No image selected, showing error message');
@@ -137,7 +160,7 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
     console.log('PhotoUploadStep - Image selected, proceeding to next step');
     const updatedUserData = {
       ...userData,
-      profileImage: selectedImage
+      profileImage: imageUrl || selectedImage // Usar imageUrl si está disponible, sino selectedImage
     };
 
     onNext(updatedUserData);
@@ -157,11 +180,49 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
       {/* Preview de la imagen */}
       <View style={styles.imagePreviewContainer}>
         {selectedImage ? (
-          <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+          <View style={styles.imageContainer}>
+            <View style={styles.imageWrapper}>
+              {Platform.OS === 'web' ? (
+                <img 
+                  src={selectedImage}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    borderRadius: '50%'
+                  }}
+                  onError={() => console.log('ERROR AL CARGAR IMAGEN HTML')}
+                  onLoad={() => console.log('IMAGEN HTML CARGADA CORRECTAMENTE')}
+                />
+              ) : (
+                <Image 
+                  source={{ uri: selectedImage }} 
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.log('ERROR AL CARGAR IMAGEN:', error);
+                  }}
+                  onLoad={() => {
+                    console.log('IMAGEN CARGADA CORRECTAMENTE');
+                  }}
+                />
+              )}
+            </View>
+            <Text style={styles.debugText}>
+              {`Imagen: ${selectedImage ? 'SÍ' : 'NO'} | Longitud: ${selectedImage ? selectedImage.length : 0}`}
+            </Text>
+            {uploading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#FF5A5F" />
+                <Text style={styles.loadingText}>Procesando imagen...</Text>
+              </View>
+            )}
+          </View>
         ) : (
           <View style={styles.placeholderContainer}>
             <User size={60} color="#ccc" />
             <Text style={styles.placeholderText}>Sin foto</Text>
+            <Text style={styles.debugText}>Estado: Sin imagen seleccionada</Text>
           </View>
         )}
       </View>
@@ -172,11 +233,11 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
         <TouchableOpacity 
           style={styles.uploadButton} 
           onPress={pickImageFromGallery}
-          disabled={loading}
+          disabled={uploading}
         >
           <Camera size={24} color="#FF5A5F" />
           <Text style={styles.uploadButtonText}>
-            {loading ? 'Cargando...' : 'Seleccionar de Galería'}
+            {uploading ? 'Cargando...' : 'Seleccionar de Galería'}
           </Text>
         </TouchableOpacity>
 
@@ -186,9 +247,12 @@ export const PhotoUploadStep = ({ userData, onNext, onBack }) => {
             <TouchableOpacity 
               style={styles.uploadButton} 
               onPress={() => fileInputRef.current?.click()}
+              disabled={uploading}
             >
               <Upload size={24} color="#FF5A5F" />
-              <Text style={styles.uploadButtonText}>Subir Archivo</Text>
+              <Text style={styles.uploadButtonText}>
+                {uploading ? 'Cargando...' : 'Subir Archivo'}
+              </Text>
             </TouchableOpacity>
 
             {/* Input file oculto para web */}
@@ -292,6 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: 75,
     borderWidth: 3,
     borderColor: '#FF5A5F',
+    backgroundColor: '#f0f0f0', // Fondo para debug
   },
   placeholderContainer: {
     width: 150,
@@ -446,6 +511,42 @@ const styles = StyleSheet.create({
     color: '#FF0000',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 75,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 12,
+    color: '#FF5A5F',
+    fontWeight: '600',
+  },
+  debugText: {
+    fontSize: 10,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 5,
+    fontFamily: 'monospace',
+  },
+  imageContainer: {
+    alignItems: 'center',
+  },
+  imageWrapper: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: '#FF5A5F',
+    backgroundColor: '#f0f0f0',
   },
 });
 

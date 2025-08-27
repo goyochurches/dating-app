@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 
 interface Props {
   conversation: any;
@@ -8,28 +8,82 @@ interface Props {
 }
 
 export const MatchItem: React.FC<Props> = ({ conversation, onPress, isOnline }) => {
-  const { partner, lastMessage, unreadCount } = conversation;
-  const contact = partner || conversation; // Handle both conversation and match objects
+  const { partner, lastMessage } = conversation;
+
+  // Debug: verificar qué datos llegan
+  console.log('MatchItem - partner completo:', partner);
+  console.log('MatchItem - avatar:', partner?.avatar);
+  console.log('MatchItem - avatar existe?', !!partner?.avatar);
+  console.log('MatchItem - avatar tipo:', typeof partner?.avatar);
+
+  // Asegurarse de que el partner exista para evitar errores
+  if (!partner) return null;
+
+  // Determinar el texto del último mensaje
+  const lastMessageText = typeof lastMessage === 'string' 
+    ? lastMessage 
+    : lastMessage?.text;
 
   return (
     <TouchableOpacity style={styles.matchItem} onPress={() => onPress(conversation)}>
-      <Image source={{ uri: contact.profilePictureUrl }} style={styles.matchImage} />
+      {/* Siempre mostrar el contenedor de imagen */}
+      <View style={styles.imageContainer}>
+        {partner.avatar ? (
+          Platform.OS === 'web' ? (
+            <img 
+              src={partner.avatar}
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                backgroundColor: '#f0f0f0',
+                border: '2px solid #e0e0e0'
+              }}
+              onError={() => {
+                console.log('Error cargando avatar en MatchItem:', partner.avatar);
+              }}
+            />
+          ) : (
+            <Image 
+              source={{ uri: partner.avatar }} 
+              style={styles.matchImage}
+              onError={() => console.log('Error cargando imagen móvil:', partner.avatar)}
+            />
+          )
+        ) : null}
+        
+        {/* Placeholder siempre presente */}
+        {!partner.avatar && (
+          <View style={[
+            styles.matchImage, 
+            { 
+              backgroundColor: '#f0f0f0', 
+              justifyContent: 'center', 
+              alignItems: 'center'
+            }
+          ]}>
+            <Text style={{ fontSize: 24, color: '#999' }}>👤</Text>
+          </View>
+        )}
+      </View>
+      
       <View style={styles.matchInfo}>
-        <Text style={styles.matchName}>{contact.name}</Text>
+        <Text style={styles.matchName}>{partner.name}</Text>
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, { backgroundColor: isOnline ? '#22c55e' : '#9ca3af' }]} />
           <Text style={styles.statusText}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
         </View>
-        {lastMessage && <Text style={styles.matchLastMessage} numberOfLines={1}>{lastMessage.text}</Text>}
+        {lastMessageText && <Text style={styles.matchLastMessage} numberOfLines={1}>{lastMessageText}</Text>}
       </View>
-      {/* Aquí podrías mostrar la hora del último mensaje o el contador de no leídos */}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   matchItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  matchImage: { width: 60, height: 60, borderRadius: 30, marginRight: 15 },
+  imageContainer: { marginRight: 15 },
+  matchImage: { width: 60, height: 60, borderRadius: 30 },
   matchInfo: { flex: 1 },
   matchName: { fontSize: 16, fontWeight: 'bold', marginBottom: 3 },
   matchLastMessage: { fontSize: 14, color: '#666', maxWidth: '80%' },

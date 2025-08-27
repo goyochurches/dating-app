@@ -215,7 +215,6 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   const handlePhotoStepNext = (userData) => {
     setFormData(userData);
     setCurrentStep(3);
-    saveRegistrationProgress(3, userData);
   };
 
   const handlePhotoStepBack = () => {
@@ -304,7 +303,7 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
 
   const handleReligionBack = () => {
     setCurrentStep(6);
-    saveRegistrationProgress(5, formData);
+    saveRegistrationProgress(6, formData);
   };
 
   const renderInput = (field, placeholder, icon, keyboardType = 'default', secureTextEntry = false) => (

@@ -22,7 +22,7 @@ export const useMessaging = (currentUser) => {
       const formattedConversations = loadedConversations.map(conv => ({
         ...conv,
         name: conv.partnerName,
-        image: conv.partnerImage || conv.image,
+        image: conv.partnerAvatar,
         time: conv.lastActivity ? formatTime(conv.lastActivity.toDate()) : 'Ahora',
       }));
       setConversations(formattedConversations);

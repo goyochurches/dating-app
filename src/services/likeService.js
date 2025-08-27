@@ -91,7 +91,11 @@ class LikeService {
 
       userDocs.forEach(userDoc => {
         if (userDoc.exists()) {
-          matches.push({ uid: userDoc.id, ...userDoc.data() });
+          const userData = userDoc.data();
+          console.log('likeService - userData from Firestore:', userData);
+          console.log('likeService - profilePictureUrl:', userData.profilePictureUrl);
+          console.log('likeService - profileImage:', userData.profileImage);
+          matches.push({ uid: userDoc.id, ...userData });
         }
       });
 

@@ -7,6 +7,7 @@ export interface User {
   age?: number;
   bio?: string;
   profilePictureUrl: string;
+  profileImage?: string; // Para imágenes base64 durante desarrollo
   interests?: string[];
   location?: string;
   createdAt?: string;
@@ -18,6 +19,7 @@ export interface Match {
   partnerId: string;
   name: string;
   profilePictureUrl: string;
+  profileImage?: string; // Para imágenes base64 durante desarrollo
   lastMessage: string;
   time: string;
   online?: boolean;
@@ -25,10 +27,14 @@ export interface Match {
 }
 
 export interface Message {
-  id: number;
+  id: string; // Document ID from Firestore
+  _id: string; // Unique ID for the message (e.g., uuid)
   text?: string;
-  sent: boolean; // true if me, false if them
-  timestamp?: string; // ISO or human readable
+  createdAt: any; // Firestore Timestamp
+  user: {
+    _id: string;
+    name: string;
+  };
   media?: string; // uri
   mediaType?: 'image' | 'video';
 }
@@ -41,4 +47,24 @@ export interface Profile {
   distance: string;
   bio: string;
   image: string;
+}
+
+export interface Conversation {
+  id: string;
+  participants: string[];
+  participantDetails: {
+    [key: string]: {
+      name: string;
+      avatar: string;
+    };
+  };
+  lastMessage?: string | { text: string; createdAt: any };
+  lastActivity?: any; // Firestore Timestamp
+  partnerUid: string;
+  partnerName: string;
+  partnerAvatar: string;
+  // Optional fields added by useMessaging hook
+  name?: string;
+  image?: string;
+  time?: string;
 }

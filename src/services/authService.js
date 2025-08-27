@@ -78,6 +78,8 @@ export class AuthService {
       const userProfile = {
         email: user.email,
         ...profileData,
+        // Asegurar compatibilidad: si hay profileImage, también guardarlo como profilePictureUrl
+        profilePictureUrl: profileData.profileImage || profileData.profilePictureUrl || null,
         createdAt: new Date().toISOString(),
       };
 

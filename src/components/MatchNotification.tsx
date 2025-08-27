@@ -84,8 +84,22 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
         {/* Imágenes de los usuarios */}
         <View style={styles.usersContainer}>
           <View style={styles.userImageContainer}>
-            {currentUser.profilePictureUrl ? (
-              <Image source={{ uri: currentUser.profilePictureUrl }} style={userImageStyle} />
+            {(currentUser.profilePictureUrl || currentUser.profileImage) ? (
+              Platform.OS === 'web' ? (
+                <img 
+                  src={currentUser.profilePictureUrl || currentUser.profileImage}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: '50%',
+                    marginBottom: 8,
+                    border: '3px solid #FF69B4',
+                    objectFit: 'cover'
+                  }}
+                />
+              ) : (
+                <Image source={{ uri: currentUser.profilePictureUrl || currentUser.profileImage }} style={userImageStyle} />
+              )
             ) : (
               <View style={[userImageStyle, styles.placeholderImage]}>
                 <Text style={styles.placeholderText}>
@@ -101,7 +115,21 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
           </View>
 
           <View style={styles.userImageContainer}>
-            <Image source={{ uri: matchedUser.profilePictureUrl }} style={userImageStyle} />
+            {Platform.OS === 'web' ? (
+              <img 
+                src={matchedUser.profilePictureUrl || matchedUser.profileImage}
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  marginBottom: 8,
+                  border: '3px solid #FF69B4',
+                  objectFit: 'cover'
+                }}
+              />
+            ) : (
+              <Image source={{ uri: matchedUser.profilePictureUrl || matchedUser.profileImage }} style={userImageStyle} />
+            )}
             <Text style={styles.userName}>{matchedUser.name}</Text>
           </View>
         </View>
