@@ -1,8 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 // Servicio de autenticación con datos mockeados
 export class AuthService {
   constructor() {
-    // Control de primera vez - cargar desde localStorage
-    this.firstTimeUsers = new Set(this.loadWelcomeData());
+    // Control de primera vez - cargar desde AsyncStorage
+    this.firstTimeUsers = new Set();
+    this.initializeWelcomeData();
     
     // Usuarios mockeados para pruebas
     this.mockUsers = [
@@ -36,7 +39,8 @@ export class AuthService {
     ];
     
     // Usuario actualmente logueado
-    this.currentUser = this.loadSession();
+    this.currentUser = null;
+    this.initializeSession();
   }
 
   // Simular delay de red
@@ -55,7 +59,7 @@ export class AuthService {
     if (user) {
       this.currentUser = { ...user };
       delete this.currentUser.password; // No devolver la contraseña
-      this.saveSession(); // Guardar sesión
+      await this.saveSession(); // Guardar sesión
       return {
         success: true,
         user: this.currentUser,
@@ -93,7 +97,7 @@ export class AuthService {
       u.email.toLowerCase() === email.toLowerCase()
     );
     
-    const registeredUsers = this.loadRegisteredUsers();
+    const registeredUsers = await this.loadRegisteredUsers();
     const existingInRegistered = registeredUsers.find(u => 
       u.email.toLowerCase() === email.toLowerCase()
     );
@@ -106,7 +110,7 @@ export class AuthService {
     }
 
     // Verificar si ya existe en usuarios registrados (prevenir doble registro)
-    const registeredUsersCheck = this.loadRegisteredUsers();
+    const registeredUsersCheck = await this.loadRegisteredUsers();
     const alreadyRegistered = registeredUsersCheck.find(u => 
       u.email.toLowerCase() === email.toLowerCase()
     );
@@ -114,7 +118,7 @@ export class AuthService {
     if (alreadyRegistered) {
       console.log('AuthService - Usuario ya registrado previamente, devolviendo usuario existente');
       this.currentUser = alreadyRegistered;
-      this.saveSession();
+      await this.saveSession();
       return {
         success: true,
         user: this.currentUser,
@@ -123,7 +127,7 @@ export class AuthService {
     }
 
     // Crear nuevo usuario con todos los datos del registro
-    const allUsers = this.getAllUsers();
+    const allUsers = await this.getAllUsers();
     const newUser = {
       id: Date.now(), // Usar timestamp para evitar conflictos de ID
       email: email.toLowerCase(),
@@ -142,12 +146,11 @@ export class AuthService {
       registeredAt: new Date().toISOString()
     };
 
-    // NO agregar a mockUsers, solo guardar en localStorage
-    this.currentUser = { ...newUser };
-    delete this.currentUser.password;
-    this.saveSession(); // Guardar sesión permanentemente
-    
-    console.log('AuthService - Usuario registrado y guardado en localStorage:', this.currentUser);
+    // NO agregar a mockUsers, solo guardar en AsyncStorage
+    this.currentUser = newUser;
+    await this.saveSession();
+
+    console.log('AuthService - Usuario registrado y guardado en AsyncStorage:', this.currentUser);
 
     return {
       success: true,
@@ -164,7 +167,7 @@ export class AuthService {
       u.email.toLowerCase() === email.toLowerCase()
     );
     
-    const registeredUsers = this.loadRegisteredUsers();
+    const registeredUsers = await this.loadRegisteredUsers();
     const existsInRegistered = registeredUsers.some(u => 
       u.email.toLowerCase() === email.toLowerCase()
     );
@@ -173,9 +176,9 @@ export class AuthService {
   }
 
   // Logout
-  logout() {
+  async logout() {
     this.currentUser = null;
-    this.clearSession(); // Limpiar sesión guardada
+    await this.clearSession(); // Limpiar sesión guardada
     return { success: true, message: 'Sesión cerrada correctamente' };
   }
 
@@ -194,10 +197,20 @@ export class AuthService {
     return !this.firstTimeUsers.has(userId);
   }
 
-  // Cargar datos de bienvenida desde localStorage
-  loadWelcomeData() {
+  // Inicializar datos de bienvenida desde AsyncStorage
+  async initializeWelcomeData() {
     try {
-      const stored = localStorage.getItem('loveconnect_welcome_seen');
+      const data = await this.loadWelcomeData();
+      this.firstTimeUsers = new Set(data);
+    } catch (error) {
+      console.error('Error initializing welcome data:', error);
+    }
+  }
+
+  // Cargar datos de bienvenida desde AsyncStorage
+  async loadWelcomeData() {
+    try {
+      const stored = await AsyncStorage.getItem('loveconnect_welcome_seen');
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading welcome data:', error);
@@ -205,41 +218,41 @@ export class AuthService {
     }
   }
 
-  // Guardar datos de bienvenida en localStorage
-  saveWelcomeData() {
+  // Guardar datos de bienvenida en AsyncStorage
+  async saveWelcomeData() {
     try {
       const data = Array.from(this.firstTimeUsers);
-      localStorage.setItem('loveconnect_welcome_seen', JSON.stringify(data));
+      await AsyncStorage.setItem('loveconnect_welcome_seen', JSON.stringify(data));
     } catch (error) {
       console.error('Error saving welcome data:', error);
     }
   }
 
-  // Guardar sesión en localStorage
-  saveSession() {
+  // Guardar sesión en AsyncStorage
+  async saveSession() {
     try {
       if (this.currentUser) {
-        localStorage.setItem('loveconnect_session', JSON.stringify(this.currentUser));
+        await AsyncStorage.setItem('loveconnect_session', JSON.stringify(this.currentUser));
         // También guardar en la lista de usuarios registrados
-        const registeredUsers = this.loadRegisteredUsers();
+        const registeredUsers = await this.loadRegisteredUsers();
         const existingIndex = registeredUsers.findIndex(u => u.id === this.currentUser.id);
         if (existingIndex >= 0) {
           registeredUsers[existingIndex] = this.currentUser;
         } else {
           registeredUsers.push(this.currentUser);
         }
-        localStorage.setItem('loveconnect_registered_users', JSON.stringify(registeredUsers));
-        console.log('Session and user data saved permanently to localStorage');
+        await AsyncStorage.setItem('loveconnect_registered_users', JSON.stringify(registeredUsers));
+        console.log('Session and user data saved permanently to AsyncStorage');
       }
     } catch (error) {
       console.error('Error saving session:', error);
     }
   }
 
-  // Cargar usuarios registrados desde localStorage
-  loadRegisteredUsers() {
+  // Cargar usuarios registrados desde AsyncStorage
+  async loadRegisteredUsers() {
     try {
-      const stored = localStorage.getItem('loveconnect_registered_users');
+      const stored = await AsyncStorage.getItem('loveconnect_registered_users');
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading registered users:', error);
@@ -247,10 +260,19 @@ export class AuthService {
     }
   }
 
-  // Cargar sesión desde localStorage
-  loadSession() {
+  // Inicializar sesión desde AsyncStorage
+  async initializeSession() {
     try {
-      const stored = localStorage.getItem('loveconnect_session');
+      this.currentUser = await this.loadSession();
+    } catch (error) {
+      console.error('Error initializing session:', error);
+    }
+  }
+
+  // Cargar sesión desde AsyncStorage
+  async loadSession() {
+    try {
+      const stored = await AsyncStorage.getItem('loveconnect_session');
       return stored ? JSON.parse(stored) : null;
     } catch (error) {
       console.error('Error loading session:', error);
@@ -259,23 +281,35 @@ export class AuthService {
   }
 
   // Limpiar sesión guardada
-  clearSession() {
+  async clearSession() {
     try {
-      localStorage.removeItem('loveconnect_session');
+      await AsyncStorage.removeItem('loveconnect_session');
     } catch (error) {
       console.error('Error clearing session:', error);
     }
   }
 
   // Marcar que el usuario ya vio la bienvenida
-  markWelcomeSeen(userId) {
+  async markWelcomeSeen(userId) {
     this.firstTimeUsers.add(userId);
-    this.saveWelcomeData(); // Guardar permanentemente
+    await this.saveWelcomeData(); // Guardar permanentemente
+  }
+
+  // Limpiar todos los usuarios registrados excepto los de ejemplo
+  async clearRegisteredUsers() {
+    try {
+      await AsyncStorage.removeItem('loveconnect_registered_users');
+      await AsyncStorage.removeItem('loveconnect_session');
+      await AsyncStorage.removeItem('loveconnect_welcome_seen');
+      console.log('All registered users cleared, only example users remain');
+    } catch (error) {
+      console.error('Error clearing registered users:', error);
+    }
   }
 
   // Obtener todos los usuarios registrados (mock + registrados)
-  getAllUsers() {
-    const registeredUsers = this.loadRegisteredUsers();
+  async getAllUsers() {
+    const registeredUsers = await this.loadRegisteredUsers();
     const allUsers = [...this.mockUsers, ...registeredUsers];
     
     // Eliminar duplicados por email y remover contraseñas

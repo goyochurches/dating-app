@@ -1,7 +1,8 @@
 export type MediaType = 'image' | 'video' | null;
 
 export interface Match {
-  id: number;
+  id: string;
+  partnerId: string;
   name: string;
   image: string;
   lastMessage: string;
@@ -20,7 +21,7 @@ export interface Message {
 }
 
 export interface Profile {
-  id: number;
+  id: string;
   name: string;
   age: number;
   location: string;

@@ -6,7 +6,8 @@ import {
   StyleSheet,
   ScrollView,
   Modal,
-  FlatList
+  FlatList,
+  Platform
 } from 'react-native';
 import { ArrowRight, ArrowLeft, MapPin, Heart, ChevronDown } from 'lucide-react-native';
 
@@ -592,11 +593,20 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 12,
-    shadowColor: '#FF5A5F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FF5A5F',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+      web: {
+        boxShadow: '0 4px 8px rgba(255,90,95,0.3)',
+      },
+    }),
   },
   nextButtonText: {
     marginRight: 8,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, Mail, Lock, ArrowLeft, Heart, Calendar, Check } from 'lucide-react-native';
 import PhotoUploadStep from './PhotoUploadStep';
 import AgeRangeStep from './AgeRangeStep';
@@ -19,10 +21,10 @@ import ReligionStep from './ReligionStep';
 import { authService } from '../services/authService';
 
 export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
-  // Cargar datos guardados del localStorage
-  const loadRegistrationProgress = () => {
+  // Cargar datos guardados del AsyncStorage
+  const loadRegistrationProgress = async () => {
     try {
-      const saved = localStorage.getItem('loveconnect_registration_progress');
+      const saved = await AsyncStorage.getItem('loveconnect_registration_progress');
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
@@ -36,34 +38,58 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
     return { step: 1, data: {} };
   };
 
-  const savedProgress = loadRegistrationProgress();
-  
-  const [currentStep, setCurrentStep] = useState(savedProgress.step);
+  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    name: savedProgress.data.name || '',
-    gender: savedProgress.data.gender || '',
-    lookingFor: savedProgress.data.lookingFor || '',
-    age: savedProgress.data.age || '',
-    email: savedProgress.data.email || '',
-    confirmEmail: savedProgress.data.confirmEmail || '',
-    password: savedProgress.data.password || '',
-    confirmPassword: savedProgress.data.confirmPassword || '',
-    acceptTerms: savedProgress.data.acceptTerms || false,
-    profileImage: savedProgress.data.profileImage || null,
-    preferredAgeRange: savedProgress.data.preferredAgeRange || { min: 18, max: 35 },
-    location: savedProgress.data.location || { country: '', state: '', city: '', maxDistance: 100 },
-    relationshipTypes: savedProgress.data.relationshipTypes || [],
-    ethnicity: savedProgress.data.ethnicity || '',
-    religion: savedProgress.data.religion || ''
+    name: '',
+    gender: '',
+    lookingFor: '',
+    age: '',
+    email: '',
+    confirmEmail: '',
+    password: '',
+    confirmPassword: '',
+    acceptTerms: false,
+    profileImage: null,
+    preferredAgeRange: { min: 18, max: 35 },
+    location: { country: '', state: '', city: '', maxDistance: 100 },
+    relationshipTypes: [],
+    ethnicity: '',
+    religion: ''
   });
+
+  // Cargar datos guardados al montar el componente
+  useEffect(() => {
+    const initializeData = async () => {
+      const savedProgress = await loadRegistrationProgress();
+      setCurrentStep(savedProgress.step);
+      setFormData({
+        name: savedProgress.data.name || '',
+        gender: savedProgress.data.gender || '',
+        lookingFor: savedProgress.data.lookingFor || '',
+        age: savedProgress.data.age || '',
+        email: savedProgress.data.email || '',
+        confirmEmail: savedProgress.data.confirmEmail || '',
+        password: savedProgress.data.password || '',
+        confirmPassword: savedProgress.data.confirmPassword || '',
+        acceptTerms: savedProgress.data.acceptTerms || false,
+        profileImage: savedProgress.data.profileImage || null,
+        preferredAgeRange: savedProgress.data.preferredAgeRange || { min: 18, max: 35 },
+        location: savedProgress.data.location || { country: '', state: '', city: '', maxDistance: 100 },
+        relationshipTypes: savedProgress.data.relationshipTypes || [],
+        ethnicity: savedProgress.data.ethnicity || '',
+        religion: savedProgress.data.religion || ''
+      });
+    };
+    initializeData();
+  }, []);
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Guardar progreso en localStorage
-  const saveRegistrationProgress = (step, data) => {
+  // Guardar progreso en AsyncStorage
+  const saveRegistrationProgress = async (step, data) => {
     try {
-      localStorage.setItem('loveconnect_registration_progress', JSON.stringify({
+      await AsyncStorage.setItem('loveconnect_registration_progress', JSON.stringify({
         step,
         data,
         timestamp: Date.now()
@@ -74,9 +100,9 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   };
 
   // Limpiar progreso guardado
-  const clearRegistrationProgress = () => {
+  const clearRegistrationProgress = async () => {
     try {
-      localStorage.removeItem('loveconnect_registration_progress');
+      await AsyncStorage.removeItem('loveconnect_registration_progress');
     } catch (error) {
       console.error('Error clearing registration progress:', error);
     }
@@ -600,11 +626,20 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#FF5A5F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FF5A5F',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+      web: {
+        boxShadow: '0 4px 8px rgba(255,90,95,0.3)',
+      },
+    }),
   },
   submitButtonDisabled: {
     opacity: 0.6,

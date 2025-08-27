@@ -4,12 +4,12 @@ import { Match } from '../types';
 
 interface Props {
   match: Match;
-  onPress: (id: number) => void;
+  onPress: (match: Match) => void;
 }
 
 export const MatchItem: React.FC<Props> = ({ match, onPress }) => {
   return (
-    <TouchableOpacity style={styles.matchItem} onPress={() => onPress(match.id)}>
+    <TouchableOpacity style={styles.matchItem} onPress={() => onPress(match)}>
       <Image source={{ uri: match.image }} style={styles.matchImage} />
       <View style={styles.matchInfo}>
         <Text style={styles.matchName}>{match.name}</Text>
