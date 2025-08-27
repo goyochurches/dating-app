@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, Animated, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, Animated, TouchableOpacity, Dimensions, Platform, ImageStyle } from 'react-native';
 import { Heart, MessageCircle } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -73,6 +73,7 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
       <Animated.View 
         style={[
           styles.container,
+          Platform.OS === 'web' ? styles.containerShadowWeb : styles.containerShadowNative,
           {
             transform: [{ scale: scaleAnim }],
           }
@@ -89,9 +90,9 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
         <View style={styles.usersContainer}>
           <View style={styles.userImageContainer}>
             {currentUser.image ? (
-              <Image source={{ uri: currentUser.image }} style={styles.userImage} />
+              <Image source={{ uri: currentUser.image }} style={userImageStyle} />
             ) : (
-              <View style={[styles.userImage, styles.placeholderImage]}>
+              <View style={[userImageStyle, styles.placeholderImage]}>
                 <Text style={styles.placeholderText}>
                   {currentUser.name.charAt(0).toUpperCase()}
                 </Text>
@@ -105,7 +106,7 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
           </View>
 
           <View style={styles.userImageContainer}>
-            <Image source={{ uri: matchedUser.image }} style={styles.userImage} />
+            <Image source={{ uri: matchedUser.image }} style={userImageStyle} />
             <Text style={styles.userName}>{matchedUser.name}</Text>
           </View>
         </View>
@@ -125,7 +126,7 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.button, styles.messageButton]} 
+            style={[styles.button, styles.messageButton, Platform.OS === 'web' ? styles.messageButtonShadowWeb : styles.messageButtonShadowNative]} 
             onPress={onSendMessage}
           >
             <MessageCircle size={20} color="#fff" />
@@ -135,6 +136,15 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
       </Animated.View>
     </Animated.View>
   );
+};
+
+const userImageStyle: ImageStyle = {
+  width: 80,
+  height: 80,
+  borderRadius: 40,
+  marginBottom: 8,
+  borderWidth: 3,
+  borderColor: '#FF69B4',
 };
 
 const styles = StyleSheet.create({
@@ -155,21 +165,8 @@ const styles = StyleSheet.create({
     padding: 30,
     margin: 20,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 20,
-      },
-      web: {
-        boxShadow: '0 10px 20px rgba(0,0,0,0.3)',
-      },
-    }),
     maxWidth: SCREEN_WIDTH * 0.9,
+    // Sombras aplicadas condicionalmente abajo
   },
   header: {
     flexDirection: 'row',
@@ -191,14 +188,6 @@ const styles = StyleSheet.create({
   },
   userImageContainer: {
     alignItems: 'center',
-  },
-  userImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 8,
-    borderWidth: 3,
-    borderColor: '#FF69B4',
   },
   placeholderImage: {
     backgroundColor: '#FF69B4',
@@ -251,24 +240,31 @@ const styles = StyleSheet.create({
   },
   messageButton: {
     backgroundColor: '#FF5A5F',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FF5A5F',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: '0 4px 8px rgba(255,90,95,0.3)',
-      },
-    }),
+    // Sombras aplicadas condicionalmente abajo
   },
   messageButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  containerShadowWeb: {
+    boxShadow: '0 10px 20px rgba(0,0,0,0.3)',
+  } as any,
+  containerShadowNative: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  messageButtonShadowWeb: {
+    boxShadow: '0 4px 8px rgba(255,90,95,0.3)',
+  } as any,
+  messageButtonShadowNative: {
+    shadowColor: '#FF5A5F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });

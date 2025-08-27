@@ -37,6 +37,12 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const SWIPE_OUT_DURATION = 250;
 
+const formatTimestamp = (timestamp) => {
+    if (!timestamp?.toDate) return '';
+    const date = timestamp.toDate();
+    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+};
+
 const LoveConnectApp = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn());
     const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
@@ -50,12 +56,15 @@ const LoveConnectApp = () => {
         isConnected,
         createConversation,
         sendMessage,
-        getConversationMessages,
-        markAsRead,
-        isUserOnline
+        listenForMessages,
+        stopListeningForMessages,
+        isUserOnline,
+        typingUsers,
+        updateTypingStatus,
     } = useMessaging(currentUser);
     const [selectedChat, setSelectedChat] = useState(null);
     const [newMessage, setNewMessage] = useState('');
+    const typingTimeoutRef = useRef(null);
     const [selectedMedia, setSelectedMedia] = useState(null);
     const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
     const [showMatchNotification, setShowMatchNotification] = useState(false);
@@ -160,7 +169,7 @@ const LoveConnectApp = () => {
         if (matchedProfile) {
             const conversation = conversations.find(c => c.partnerId === matchedProfile.id);
             if (conversation) {
-                setSelectedChat(conversation.id);
+                setSelectedChat(conversation);
             }
         }
     };
@@ -191,11 +200,7 @@ const LoveConnectApp = () => {
                 setShowMatchNotification(true);
                 
                 // Crear nueva conversación real
-                await createConversation(
-                    currentProfile.id,
-                    currentProfile.name,
-                    currentProfile.image
-                );
+                await createConversation(currentProfile);
             }
             
             goToNextProfile();
@@ -257,6 +262,22 @@ const LoveConnectApp = () => {
         setMediaType(null);
     };
 
+    const handleTextInputChange = (text) => {
+        setNewMessage(text);
+
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
+
+        if (selectedChat) {
+            updateTypingStatus(selectedChat.id, true);
+
+            typingTimeoutRef.current = setTimeout(() => {
+                updateTypingStatus(selectedChat.id, false);
+            }, 2000); // 2 segundos de inactividad para dejar de escribir
+        }
+    };
+
     const handleSendMessage = async () => {
         if (!newMessage.trim() && !selectedMedia) return;
 
@@ -267,7 +288,15 @@ const LoveConnectApp = () => {
                 mediaType: mediaType,
             };
 
-            await sendMessage(selectedChat, messageData);
+            await sendMessage(selectedChat.id, messageData);
+
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            if (selectedChat) {
+                updateTypingStatus(selectedChat.id, false);
+            }
+
             setNewMessage('');
             clearSelectedMedia();
         } catch (error) {
@@ -287,49 +316,26 @@ const LoveConnectApp = () => {
         }
     }, [messages, selectedChat]);
 
-    // Marcar conversación como leída cuando se abre
+    // Escuchar mensajes de la conversación seleccionada
     useEffect(() => {
-        if (selectedChat) {
-            markAsRead(selectedChat);
-        }
-    }, [selectedChat, markAsRead]);
+        if (selectedChat?.id) {
+            listenForMessages(selectedChat.id);
+        } 
+
+        // Dejar de escuchar cuando el componente se desmonte o el chat cambie
+        return () => {
+            if (selectedChat?.id) {
+                stopListeningForMessages(selectedChat.id);
+            }
+        };
+    }, [selectedChat]);
 
     // Renderizar la pantalla de chat
     const renderChatScreen = () => {
-        const chatMessages = getConversationMessages(selectedChat);
-        const match = conversations.find(m => m.id === selectedChat);
-        const isOnline = match?.online;
+        // Los mensajes de la conversación activa ahora vienen directamente del hook
+        const chatMessages = messages;
+        const isOnline = selectedChat ? isUserOnline(selectedChat.partnerId) : false;
 
-        const renderMessageContent = (message) => (
-            <>
-                {message.media && (
-                    <View style={styles.mediaContainer}>
-                        {message.mediaType === 'image' ? (
-                            <Image
-                                source={{ uri: message.media }}
-                                style={styles.mediaPreview}
-                                resizeMode="cover"
-                            />
-                        ) : (
-                            <ExpoVideo
-                                source={{ uri: message.media }}
-                                style={styles.mediaPreview}
-                                useNativeControls
-                                isLooping
-                            />
-                        )}
-                    </View>
-                )}
-                {message.text && (
-                    <Text style={[
-                        styles.messageText,
-                        message.sent ? styles.sentMessageText : styles.receivedMessage
-                    ]}>
-                        {message.text}
-                    </Text>
-                )}
-            </>
-        );
 
         return (
             <View style={styles.chatContainer}>
@@ -340,7 +346,7 @@ const LoveConnectApp = () => {
                     >
                         <Text style={styles.backButtonText}>←</Text>
                     </TouchableOpacity>
-                    <ChatHeader title={match?.name || 'Chat'} online={isOnline} />
+                    <ChatHeader title={selectedChat?.partnerName || 'Chat'} online={isOnline} />
                     <View style={{ width: 40 }} />
                 </View>
                 <ScrollView
@@ -353,16 +359,12 @@ const LoveConnectApp = () => {
                         }
                     }}
                 >
-                    {chatMessages.map((message) => (
-                        <MessageBubble key={message.id} sent={!!message.sent} timestamp={message.timestamp}>
+                                        {chatMessages.map((message) => (
+                        <MessageBubble key={message.id} sent={message.user?._id === currentUser.id} timestamp={formatTimestamp(message.createdAt)}>
                             {!!message.media && !!message.mediaType && (
                                 <MediaPreview uri={message.media} type={message.mediaType} />
                             )}
-                            {!!message.text && (
-                                <Text style={[styles.messageText, message.sent ? styles.sentMessageText : styles.receivedMessage]}>
-                                    {message.text}
-                                </Text>
-                            )}
+                            {!!message.text && message.text}
                         </MessageBubble>
                     ))}
                 </ScrollView>
@@ -405,7 +407,7 @@ const LoveConnectApp = () => {
                         style={styles.input}
                         placeholder="Escribe un mensaje..."
                         value={newMessage}
-                        onChangeText={setNewMessage}
+                        onChangeText={handleTextInputChange}
                         onSubmitEditing={handleSendMessage}
                     />
                     <TouchableOpacity
@@ -547,6 +549,7 @@ const LoveConnectApp = () => {
                         <Image
                             source={{ uri: profile.image }}
                             style={styles.profileImage}
+                            resizeMode="cover"
                         />
                         <View style={styles.profileInfo}>
                             <Text style={styles.profileName}>
@@ -565,14 +568,12 @@ const LoveConnectApp = () => {
 
                         <Animated.View
                             style={[styles.likeBadge, { opacity: likeOpacity }]}
-                            pointerEvents="none"
                         >
                             <Text style={styles.likeText}>LIKE</Text>
                         </Animated.View>
 
                         <Animated.View
                             style={[styles.nopeBadge, { opacity: nopeOpacity }]}
-                            pointerEvents="none"
                         >
                             <Text style={styles.nopeText}>NOPE</Text>
                         </Animated.View>
@@ -598,8 +599,17 @@ const LoveConnectApp = () => {
     };
 
     // Renderizar la barra de navegación inferior
+            // Manejar la navegación y resetear el chat si es necesario
+    const handleNavigation = (screen: string) => {
+        if (screen !== 'messages') {
+            setSelectedChat(null);
+        }
+        setCurrentScreen(screen);
+    };
+
+    // Renderizar la barra de navegación inferior
     const renderBottomNav = () => (
-        <BottomNav current={currentScreen} onChange={setCurrentScreen} />
+        <BottomNav current={currentScreen} onChange={handleNavigation} />
     );
 
     // Si no está logueado, mostrar pantalla de login
@@ -778,11 +788,20 @@ const styles = StyleSheet.create({
         paddingHorizontal: 30,
         paddingVertical: 15,
         borderRadius: 25,
-        shadowColor: '#FF5A5F',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#FF5A5F',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 8,
+            },
+            web: {
+                boxShadow: '0 4px 8px rgba(255, 90, 95, 0.3)',
+            }
+        }),
     },
     refreshButtonText: {
         color: '#fff',
@@ -797,11 +816,20 @@ const styles = StyleSheet.create({
     profileCard: {
         backgroundColor: '#fff',
         borderRadius: 15,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 5,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 10,
+            },
+            android: {
+                elevation: 5,
+            },
+            web: {
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+            }
+        }),
         overflow: 'hidden',
         marginBottom: 20,
         position: 'relative',
@@ -815,6 +843,7 @@ const styles = StyleSheet.create({
         padding: 10,
         borderRadius: 8,
         transform: [{ rotate: '-15deg' }],
+        pointerEvents: 'none',
     },
     likeText: {
         color: '#4CAF50',
@@ -830,6 +859,7 @@ const styles = StyleSheet.create({
         padding: 10,
         borderRadius: 8,
         transform: [{ rotate: '15deg' }],
+        pointerEvents: 'none',
     },
     nopeText: {
         color: '#F44336',
@@ -839,7 +869,6 @@ const styles = StyleSheet.create({
     profileImage: {
         width: '100%',
         height: 400,
-        resizeMode: 'cover',
     },
     profileInfo: {
         padding: 20,
@@ -875,11 +904,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginHorizontal: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        elevation: 5,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 5,
+            },
+            android: {
+                elevation: 5,
+            },
+            web: {
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+            }
+        }),
     },
     likeButton: {
         backgroundColor: 'white',
@@ -892,7 +930,15 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f5f5',
     },
-    chatHeader: {
+    typingIndicatorContainer: {
+    paddingHorizontal: 15,
+    paddingBottom: 5,
+  },
+  typingIndicatorText: {
+    fontStyle: 'italic',
+    color: '#888',
+  },
+  chatHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
