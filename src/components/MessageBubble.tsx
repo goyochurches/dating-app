@@ -11,10 +11,10 @@ interface Props {
 
 export const MessageBubble: React.FC<Props> = ({ sent, timestamp, status, children }) => {
   return (
-    <View style={[styles.messageBubble, sent ? styles.sentMessage : styles.receivedMessage]}>
+    <View style={[styles.messageBubble, sent ? styles.sentBubble : styles.receivedBubble]}>
       {children}
       <View style={styles.messageFooter}>
-        {!!timestamp && <Text style={styles.messageTime}>{timestamp}</Text>}
+        {!!timestamp && <Text style={[styles.messageTime, sent && styles.sentText]}>{timestamp}</Text>}
         {sent && status && <MessageStatus status={status} />}
       </View>
     </View>
@@ -23,8 +23,9 @@ export const MessageBubble: React.FC<Props> = ({ sent, timestamp, status, childr
 
 const styles = StyleSheet.create({
   messageBubble: { maxWidth: '80%', padding: 12, borderRadius: 15, marginBottom: 10 },
-  sentMessage: { alignSelf: 'flex-end', backgroundColor: '#FF5A5F', borderBottomRightRadius: 2 },
-  receivedMessage: { alignSelf: 'flex-start', backgroundColor: '#fff', borderBottomLeftRadius: 2 },
+  sentBubble: { alignSelf: 'flex-end', backgroundColor: '#007AFF', borderBottomRightRadius: 2 },
+  receivedBubble: { alignSelf: 'flex-start', backgroundColor: '#E5E5EA', borderBottomLeftRadius: 2 },
   messageFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
-  messageTime: { fontSize: 10, color: '#999', textAlign: 'right' },
+  messageTime: { fontSize: 12, color: '#666', textAlign: 'right' },
+  sentText: { color: 'white' },
 });
