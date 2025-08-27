@@ -1011,10 +1011,11 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
         borderTopWidth: 1,
         borderTopColor: '#eee',
-        backgroundColor: 'white',
+        backgroundColor: '#fff',
     },
     mediaButton: {
         padding: 8,
@@ -1066,8 +1067,8 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 15,
         paddingVertical: 10,
-        marginRight: 10,
         fontSize: 16,
+        marginHorizontal: 8,
     },
     sendButton: {
         width: 40,
