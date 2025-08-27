@@ -18,7 +18,8 @@ import LocationStep from './LocationStep';
 import RelationshipTypeStep from './RelationshipTypeStep';
 import EthnicityStep from './EthnicityStep';
 import ReligionStep from './ReligionStep';
-import { authService } from '../services/authService';
+import AuthService from '../services/authService';
+const authService = new AuthService();
 
 export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   // Cargar datos guardados del AsyncStorage
@@ -62,23 +63,20 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
     const initializeData = async () => {
       const savedProgress = await loadRegistrationProgress();
       setCurrentStep(savedProgress.step);
-      setFormData({
-        name: savedProgress.data.name || '',
-        gender: savedProgress.data.gender || '',
-        lookingFor: savedProgress.data.lookingFor || '',
-        age: savedProgress.data.age || '',
-        email: savedProgress.data.email || '',
-        confirmEmail: savedProgress.data.confirmEmail || '',
-        password: savedProgress.data.password || '',
-        confirmPassword: savedProgress.data.confirmPassword || '',
-        acceptTerms: savedProgress.data.acceptTerms || false,
-        profileImage: savedProgress.data.profileImage || null,
-        preferredAgeRange: savedProgress.data.preferredAgeRange || { min: 18, max: 35 },
-        location: savedProgress.data.location || { country: '', state: '', city: '', maxDistance: 100 },
-        relationshipTypes: savedProgress.data.relationshipTypes || [],
-        ethnicity: savedProgress.data.ethnicity || '',
-        religion: savedProgress.data.religion || ''
-      });
+      setFormData(prevData => ({
+        ...prevData, // Mantener los valores por defecto
+        ...savedProgress.data,
+        // Asegurar que location siempre sea un objeto
+        location: {
+          ...(prevData.location),
+          ...(savedProgress.data.location || {})
+        },
+        // Asegurar que preferredAgeRange siempre sea un objeto
+        preferredAgeRange: {
+          ...(prevData.preferredAgeRange),
+          ...(savedProgress.data.preferredAgeRange || {})
+        }
+      }));
     };
     initializeData();
   }, []);
@@ -109,6 +107,9 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
   };
 
   const handleInputChange = (field, value) => {
+    // Evitar que location se actualice como un campo de texto simple
+    if (field === 'location') return;
+
     setFormData(prev => ({ ...prev, [field]: value }));
     
     // Limpiar error del campo cuando el usuario empiece a escribir
@@ -465,8 +466,8 @@ export const RegisterForm = ({ onRegisterSuccess, onBackToLogin }) => {
             {formData.acceptTerms && <Check size={16} color="#fff" />}
           </TouchableOpacity>
           <Text style={styles.checkboxText}>
-            Sí, confirmo que soy mayor de 18 años y acepto los{' '}
-            <Text style={styles.linkText}>Términos de uso</Text> y la{' '}
+            Sí, confirmo que soy mayor de 18 años y acepto los 
+            <Text style={styles.linkText}>Términos de uso</Text> y la 
             <Text style={styles.linkText}>Política de privacidad</Text>
           </Text>
         </View>

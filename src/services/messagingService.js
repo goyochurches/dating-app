@@ -29,22 +29,23 @@ class MessagingService {
     if (this.conversationsUnsubscribe) {
       this.conversationsUnsubscribe();
     }
-    if (!this.currentUser?.id) return;
+    if (!this.currentUser?.uid) return;
 
     const conversationsRef = collection(db, 'conversations');
-    const q = query(conversationsRef, where('participants', 'array-contains', this.currentUser.id));
+    const q = query(conversationsRef, where('participants', 'array-contains', this.currentUser.uid));
 
     this.conversationsUnsubscribe = onSnapshot(q, (snapshot) => {
       const conversations = [];
       snapshot.forEach(doc => {
         const data = doc.data();
-        const partnerId = data.participants.find(p => p !== this.currentUser.id);
+        const partnerId = data.participants.find(p => p !== this.currentUser.uid);
         const isPartnerOnline = this.isUserOnline(partnerId);
         conversations.push({ 
           id: doc.id, 
           ...data,
           partnerId,
           partnerName: data.participantDetails[partnerId]?.name,
+          partnerImage: data.participantDetails[partnerId]?.avatar,
           partnerIsOnline: isPartnerOnline,
         });
       });
@@ -53,7 +54,7 @@ class MessagingService {
   }
 
   async sendMessage(conversationId, message) {
-    if (!this.currentUser?.id) throw new Error('User not authenticated');
+    if (!this.currentUser?.uid) throw new Error('User not authenticated');
 
     const messagesRef = collection(db, 'conversations', conversationId, 'messages');
     const conversationRef = doc(db, 'conversations', conversationId);
@@ -65,7 +66,7 @@ class MessagingService {
       mediaType: message.mediaType || null,
       createdAt: serverTimestamp(),
       user: {
-        _id: this.currentUser.id,
+        _id: this.currentUser.uid,
         name: this.currentUser.name,
       },
     };
@@ -80,18 +81,18 @@ class MessagingService {
   }
 
   async createConversation(partner) {
-    if (!this.currentUser?.id || !partner?.id) throw new Error('Invalid user or partner');
+    if (!this.currentUser?.uid || !partner?.uid) throw new Error('Invalid user or partner');
 
-    const conversationId = [this.currentUser.id, partner.id].sort().join('_');
+    const conversationId = [this.currentUser.uid, partner.uid].sort().join('_');
     const conversationRef = doc(db, 'conversations', conversationId);
     const docSnap = await getDoc(conversationRef);
 
     if (!docSnap.exists()) {
       await setDoc(conversationRef, {
-        participants: [this.currentUser.id, partner.id],
+        participants: [this.currentUser.uid, partner.uid],
         participantDetails: {
-          [this.currentUser.id]: { name: this.currentUser.name, avatar: this.currentUser.avatar || null },
-          [partner.id]: { name: partner.name, avatar: partner.avatar || partner.image || null },
+          [this.currentUser.uid]: { name: this.currentUser.name, avatar: this.currentUser.image || null },
+          [partner.uid]: { name: partner.name, avatar: partner.image || null },
         },
         createdAt: serverTimestamp(),
         lastMessage: '¡Has hecho match! Di hola.',
@@ -133,11 +134,11 @@ class MessagingService {
   }
 
   async updateTypingStatus(conversationId, isTyping) {
-    if (!this.currentUser?.id) return;
+    if (!this.currentUser?.uid) return;
 
     const conversationRef = doc(db, 'conversations', conversationId);
     const updates = {};
-    updates[`typing.${this.currentUser.id}`] = isTyping;
+    updates[`typing.${this.currentUser.uid}`] = isTyping;
 
     await updateDoc(conversationRef, updates);
   }

@@ -1,10 +1,23 @@
 export type MediaType = 'image' | 'video' | null;
 
+export interface User {
+  uid: string;
+  email: string;
+  name: string;
+  age?: number;
+  bio?: string;
+  profilePictureUrl: string;
+  interests?: string[];
+  location?: string;
+  createdAt?: string;
+}
+
 export interface Match {
   id: string;
+  uid: string;
   partnerId: string;
   name: string;
-  image: string;
+  profilePictureUrl: string;
   lastMessage: string;
   time: string;
   online?: boolean;

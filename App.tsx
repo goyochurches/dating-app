@@ -15,22 +15,24 @@ if (!process.hrtime) (process as any).hrtime = () => [0, 0] as [number, number];
 
 import { Video as ExpoVideo } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
-import { X as CloseIcon, Heart, Image as ImageIcon, MapPin, MessageCircle, Send, Settings, User, Video, X } from 'lucide-react-native';
+import { X as CloseIcon, Heart, Image as ImageIcon, MapPin, MessageCircle, Send, Settings, User as UserIcon, Video, X } from 'lucide-react-native';
 import { ChatHeader } from './src/components/ChatHeader';
 import { MatchItem } from './src/components/MatchItem';
 import { MessageBubble } from './src/components/MessageBubble';
 import { MediaPreview } from './src/components/MediaPreview';
+import { User, MediaType, Match, Message } from './src/types';
 import { BottomNav } from './src/components/BottomNav';
 import { ConnectionStatus } from './src/components/ConnectionStatus';
 import { MatchNotification } from './src/components/MatchNotification';
 import LoginScreen from './src/components/LoginScreen';
 import WelcomeModal from './src/components/WelcomeModal';
 import { usePresence } from './src/hooks/usePresence';
-import { authService } from './src/services/authService';
+import AuthService from './src/services/authService';
+const authService = new AuthService();
 import { useMessaging } from './src/hooks/useMessaging';
 import { likeService } from './src/services/likeService';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -43,12 +45,26 @@ const formatTimestamp = (timestamp) => {
     return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 };
 
-const LoveConnectApp = () => {
+const formatLocation = (location) => {
+  if (!location) return '';
+  // Manejar datos antiguos que puedan ser un string
+  if (typeof location === 'string') return location;
+  // Manejar el objeto de ubicación
+  if (typeof location === 'object') {
+    const parts = [location.city, location.state, location.country].filter(Boolean);
+    return parts.join(', ');
+  }
+  return '';
+};
+
+const App = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn());
-    const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [profiles, setProfiles] = useState<User[]>([]);
     const [currentScreen, setCurrentScreen] = useState('discover');
     const [showWelcome, setShowWelcome] = useState(false);
     const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
+    const [loadingProfiles, setLoadingProfiles] = useState(true);
     // Hook de mensajería en tiempo real
     const {
         conversations,
@@ -68,89 +84,74 @@ const LoveConnectApp = () => {
     const [selectedMedia, setSelectedMedia] = useState(null);
     const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
     const [showMatchNotification, setShowMatchNotification] = useState(false);
-    const [matchedProfile, setMatchedProfile] = useState(null);
+    const [matchedProfile, setMatchedProfile] = useState<User | null>(null);
 
     // Cargar perfiles de usuarios registrados
     const loadProfiles = async () => {
+        if (!currentUser?.uid) return;
+        setLoadingProfiles(true);
         try {
-            const allUsers = await authService.getAllUsers();
-            // Filtrar usuarios excluyendo el usuario actual
-            const otherUsers = allUsers.filter(user => 
-                currentUser && user.id !== currentUser.id
-            ).map(user => {
-                // Convertir location a string si es un objeto
-                let locationString = 'España';
-                if (user.location) {
-                    if (typeof user.location === 'string') {
-                        locationString = user.location;
-                    } else if (typeof user.location === 'object') {
-                        // Si es un objeto, construir string desde las propiedades
-                        const { city, state, country } = user.location;
-                        if (city && state && country) {
-                            locationString = `${city}, ${state}, ${country}`;
-                        } else if (city && country) {
-                            locationString = `${city}, ${country}`;
-                        } else if (country) {
-                            locationString = country;
-                        }
-                    }
-                }
-                
-                return {
-                    id: user.id,
-                    name: user.name,
-                    age: user.age,
-                    location: locationString,
-                    distance: `${Math.floor(Math.random() * 10) + 1} km`,
-                    bio: user.bio || 'Usuario de LoveConnect',
-                    image: user.image
-                };
-            });
-            setProfiles(otherUsers);
+            const availableUsers = await authService.getAvailableUsers();
+            setProfiles(availableUsers);
         } catch (error) {
             console.error('Error loading profiles:', error);
+            setProfiles([]);
+        } finally {
+            setCurrentProfileIndex(0);
+            setLoadingProfiles(false);
         }
+    };
+
+    const loadMatches = async () => {
+        if (!currentUser?.uid) return;
+        const userMatches = await likeService.getUserMatches(currentUser.uid);
+        setMatches(userMatches);
     };
 
     // Verificar si hay usuario logueado al iniciar
     useEffect(() => {
-        const user = authService.getCurrentUser();
-        if (user) {
-            setIsLoggedIn(true);
-            setCurrentUser(user);
-            // Inicializar servicio de likes
-            likeService.initialize(user.id);
-        }
+        const unsubscribe = authService.subscribeToAuthChanges(user => {
+            if (user) {
+                setCurrentUser(user as User);
+                setIsLoggedIn(true);
+                likeService.initialize(user.uid);
+            } else {
+                setCurrentUser(null);
+                setIsLoggedIn(false);
+            }
+        });
+
+        return () => unsubscribe();
     }, []);
 
     // Cargar perfiles cuando el usuario esté logueado
     useEffect(() => {
         if (currentUser) {
             loadProfiles();
+            loadMatches();
         }
     }, [currentUser]);
 
     // Manejar login exitoso
-    const handleLoginSuccess = (user) => {
-        console.log('App.tsx - handleLoginSuccess called with user:', user);
+    const handleLoginSuccess = (user: User, isNewUser: boolean = false) => {
+        console.log('App.tsx - handleLoginSuccess called for user:', user?.email, 'isNewUser:', isNewUser);
         setCurrentUser(user);
         setIsLoggedIn(true);
-        
+
         // Inicializar servicio de likes
-        likeService.initialize(user.id);
-        
-        // Verificar si es la primera vez del usuario
-        if (authService.isFirstTime(user.id)) {
+        if (user?.uid) {
+            likeService.initialize(user.uid);
+        }
+
+        // Mostrar bienvenida solo a usuarios nuevos
+        if (isNewUser) {
             setShowWelcome(true);
         }
-        console.log('App.tsx - User logged in successfully, isLoggedIn set to true');
     };
 
     // Manejar aceptación de bienvenida
     const handleWelcomeAccept = () => {
-        if (currentUser) {
-            authService.markWelcomeSeen(currentUser.id);
-        }
+        // La lógica de 'markWelcomeSeen' ya no es necesaria.
         setShowWelcome(false);
     };
 
@@ -167,7 +168,7 @@ const LoveConnectApp = () => {
         setCurrentScreen('messages');
         // Buscar la conversación recién creada y abrirla
         if (matchedProfile) {
-            const conversation = conversations.find(c => c.partnerId === matchedProfile.id);
+            const conversation = conversations.find(c => c.partnerUid === matchedProfile?.uid);
             if (conversation) {
                 setSelectedChat(conversation);
             }
@@ -183,34 +184,34 @@ const LoveConnectApp = () => {
     };
 
     // Estado para perfiles de usuarios registrados
-    const [profiles, setProfiles] = useState([]);
+    const [matches, setMatches] = useState<Match[]>([]);
 
     // Manejadores de acciones
-    const handleLike = async () => {
-        const currentProfile = profiles[currentProfileIndex];
-        
-        try {
-            // Dar like al perfil
-            const likeResult = await likeService.likeProfile(currentProfile.id);
-            
-            // Solo crear conversación y mostrar notificación si hay match mutuo
-            if (likeResult.isMatch) {
-                // Mostrar notificación de match
-                setMatchedProfile(currentProfile);
-                setShowMatchNotification(true);
-                
+    const handleLike = async (likedUser: User) => {
+        if (!likedUser?.uid) return;
+
+        const isMatch = await likeService.likeUser(likedUser.uid);
+        if (isMatch) {
+         
+            try {
                 // Crear nueva conversación real
-                await createConversation(currentProfile);
+                await createConversation(likedUser);
+                
+                // Mostrar notificación de match
+                setMatchedProfile(likedUser);
+                setShowMatchNotification(true);
+
+            } catch (error) {
+                console.error('Error al crear conversación tras match:', error);
             }
-            
-            goToNextProfile();
-        } catch (error) {
-            console.error('Error handling like:', error);
-            goToNextProfile();
         }
+        goToNextProfile();
     };
 
-    const handleDislike = () => {
+    const handleDislike = (dislikedUser: User) => {
+        if (!dislikedUser?.uid) return;
+
+        likeService.dislikeUser(dislikedUser.uid);
         goToNextProfile();
     };
 
@@ -274,7 +275,7 @@ const LoveConnectApp = () => {
 
             typingTimeoutRef.current = setTimeout(() => {
                 updateTypingStatus(selectedChat.id, false);
-            }, 2000); // 2 segundos de inactividad para dejar de escribir
+            }, 3000);
         }
     };
 
@@ -288,13 +289,8 @@ const LoveConnectApp = () => {
                 mediaType: mediaType,
             };
 
-            await sendMessage(selectedChat.id, messageData);
-
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
-            }
-            if (selectedChat) {
-                updateTypingStatus(selectedChat.id, false);
+            if (selectedChat?.id) {
+                await sendMessage(selectedChat.id, messageData);
             }
 
             setNewMessage('');
@@ -303,8 +299,6 @@ const LoveConnectApp = () => {
             console.error('Error sending message:', error);
         }
     };
-
-    // getRandomResponse imported from src/utils/responses
 
     // Referencia para el ScrollView
     const scrollViewRef = useRef<ScrollView>(null);
@@ -330,37 +324,26 @@ const LoveConnectApp = () => {
         };
     }, [selectedChat]);
 
-    // Renderizar la pantalla de chat
     const renderChatScreen = () => {
-        // Los mensajes de la conversación activa ahora vienen directamente del hook
         const chatMessages = messages;
-        const isOnline = selectedChat ? isUserOnline(selectedChat.partnerId) : false;
-
+        const isOnline = selectedChat ? isUserOnline(selectedChat.partnerUid) : false;
+        const isPartnerTyping = selectedChat ? typingUsers[selectedChat.id] : false;
 
         return (
             <View style={styles.chatContainer}>
-                <View style={styles.chatHeader}>
-                    <TouchableOpacity
-                        onPress={() => setSelectedChat(null)}
-                        style={styles.backButton}
-                    >
-                        <Text style={styles.backButtonText}>←</Text>
-                    </TouchableOpacity>
-                    <ChatHeader title={selectedChat?.partnerName || 'Chat'} online={isOnline} />
-                    <View style={{ width: 40 }} />
-                </View>
+                <ChatHeader
+                    partner={selectedChat?.partner}
+                    isOnline={isOnline}
+                    onBack={() => setSelectedChat(null)}
+                />
                 <ScrollView
                     ref={scrollViewRef}
                     style={styles.messagesContainer}
                     contentContainerStyle={{ paddingBottom: 20 }}
-                    onContentSizeChange={() => {
-                        if (scrollViewRef.current) {
-                            scrollViewRef.current.scrollToEnd({ animated: true });
-                        }
-                    }}
+                    onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
                 >
-                                        {chatMessages.map((message) => (
-                        <MessageBubble key={message.id} sent={message.user?._id === currentUser.id} timestamp={formatTimestamp(message.createdAt)}>
+                    {chatMessages.map((message) => (
+                        <MessageBubble key={message.id} sent={message.user?._id === currentUser?.uid} timestamp={formatTimestamp(message.createdAt)}>
                             {!!message.media && !!message.mediaType && (
                                 <MediaPreview uri={message.media} type={message.mediaType} />
                             )}
@@ -368,39 +351,30 @@ const LoveConnectApp = () => {
                         </MessageBubble>
                     ))}
                 </ScrollView>
-
+                {isPartnerTyping && (
+                    <View style={styles.typingIndicatorContainer}>
+                        <Text style={styles.typingIndicatorText}>{selectedChat.name} está escribiendo...</Text>
+                    </View>
+                )}
                 {selectedMedia && (
                     <View style={styles.mediaPreviewContainer}>
                         {mediaType === 'image' ? (
-                            <Image
-                                source={{ uri: selectedMedia }}
-                                style={styles.mediaThumbnail}
-                                resizeMode="cover"
-                            />
+                            <Image source={{ uri: selectedMedia }} style={styles.mediaThumbnail} resizeMode="cover" />
                         ) : (
                             <View style={[styles.mediaThumbnail, styles.videoThumbnail]}>
                                 <Video size={24} color="#fff" />
                             </View>
                         )}
-                        <TouchableOpacity
-                            style={styles.removeMediaButton}
-                            onPress={clearSelectedMedia}
-                        >
+                        <TouchableOpacity style={styles.removeMediaButton} onPress={clearSelectedMedia}>
                             <CloseIcon size={16} color="#fff" />
                         </TouchableOpacity>
                     </View>
                 )}
                 <View style={styles.inputContainer}>
-                    <TouchableOpacity
-                        style={styles.mediaButton}
-                        onPress={() => pickMedia('image')}
-                    >
+                    <TouchableOpacity style={styles.mediaButton} onPress={() => pickMedia('image')}>
                         <ImageIcon size={24} color="#FF5A5F" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.mediaButton}
-                        onPress={() => pickMedia('video')}
-                    >
+                    <TouchableOpacity style={styles.mediaButton} onPress={() => pickMedia('video')}>
                         <Video size={24} color="#FF5A5F" />
                     </TouchableOpacity>
                     <TextInput
@@ -410,187 +384,71 @@ const LoveConnectApp = () => {
                         onChangeText={handleTextInputChange}
                         onSubmitEditing={handleSendMessage}
                     />
-                    <TouchableOpacity
-                        style={styles.sendButton}
-                        onPress={handleSendMessage}
-                        disabled={!newMessage.trim() && !selectedMedia}
-                    >
-                        <Send size={24} color={!newMessage.trim() && !selectedMedia ? "#ccc" : "#FF5A5F"} />
+                    <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
+                        <Send size={20} color="#FF5A5F" />
                     </TouchableOpacity>
                 </View>
             </View>
         );
     };
 
-    // Renderizar la lista de matches
-    const renderMatchesList = () => (
-        <ScrollView style={styles.matchesList}>
-            {conversations.map((conversation) => (
-                <MatchItem key={conversation.id} match={conversation} onPress={setSelectedChat} />
-            ))}
-        </ScrollView>
-    );
-
-    // Renderizar la pantalla de descubrimiento
     const renderDiscoverScreen = () => {
-        // Verificar si hay perfiles disponibles o si hemos llegado al final
-        if (!profiles || profiles.length === 0 || currentProfileIndex >= profiles.length) {
+        if (loadingProfiles) {
+            return (
+                <View style={styles.placeholderContainer}>
+                    <ActivityIndicator size="large" color="#FF5A5F" />
+                    <Text style={styles.placeholderText}>Buscando perfiles...</Text>
+                </View>
+            );
+        }
+
+        if (profiles.length === 0) {
             return (
                 <View style={styles.noProfilesContainer}>
-                    <View style={styles.noProfilesIcon}>
-                        <Text style={styles.noProfilesEmoji}>🔍</Text>
-                    </View>
-                    <Text style={styles.noProfilesTitle}>¡Has visto todos los perfiles!</Text>
-                    <Text style={styles.noProfilesSubtitle}>
-                        No hay más personas que coincidan con tus preferencias actuales
-                    </Text>
-                    
-                    <View style={styles.suggestionsContainer}>
-                        <Text style={styles.suggestionsTitle}>💡 Sugerencias para ver más perfiles:</Text>
-                        <View style={styles.suggestionsList}>
-                            <Text style={styles.suggestionItem}>• Aumenta tu rango de distancia</Text>
-                            <Text style={styles.suggestionItem}>• Amplía tu rango de edad preferido</Text>
-                            <Text style={styles.suggestionItem}>• Revisa tus filtros de búsqueda</Text>
-                            <Text style={styles.suggestionItem}>• Vuelve más tarde para nuevos usuarios</Text>
-                        </View>
-                    </View>
-
-                    <TouchableOpacity 
-                        style={styles.refreshButton}
-                        onPress={() => loadProfiles()}
-                    >
-                        <Text style={styles.refreshButtonText}>🔄 Actualizar perfiles</Text>
+                    <Text style={styles.noProfilesEmoji}>😢</Text>
+                    <Text style={styles.noProfilesTitle}>No hay más perfiles</Text>
+                    <Text style={styles.noProfilesSubtitle}>Has visto todos los perfiles disponibles. ¡Vuelve más tarde para ver gente nueva!</Text>
+                    <TouchableOpacity style={styles.refreshButton} onPress={loadProfiles}>
+                        <Text style={styles.refreshButtonText}>Buscar de nuevo</Text>
                     </TouchableOpacity>
                 </View>
             );
         }
 
-        const profile = profiles[currentProfileIndex];
-        const position = new Animated.ValueXY();
+        const currentProfile = profiles[currentProfileIndex];
 
-        const onGestureEvent = Animated.event(
-            [{ nativeEvent: { translationX: position.x, translationY: position.y } }],
-            { useNativeDriver: Platform.OS !== 'web' }
-        );
-
-        const onHandlerStateChange = (event) => {
-            if (event.nativeEvent.oldState === State.ACTIVE) {
-                const { translationX } = event.nativeEvent;
-
-                if (translationX > SWIPE_THRESHOLD) {
-                    // Swipe right - Like
-                    swipeOut('right');
-                } else if (translationX < -SWIPE_THRESHOLD) {
-                    // Swipe left - Dislike
-                    swipeOut('left');
-                } else {
-                    // Reset position if not enough swipe
-                    Animated.spring(position, {
-                        toValue: { x: 0, y: 0 },
-                        useNativeDriver: Platform.OS !== 'web',
-                    }).start();
-                }
-            }
-        };
-
-        const swipeOut = (direction) => {
-            const x = direction === 'right' ? SCREEN_WIDTH : -SCREEN_WIDTH;
-
-            Animated.timing(position, {
-                toValue: { x, y: 0 },
-                duration: SWIPE_OUT_DURATION,
-                useNativeDriver: Platform.OS !== 'web',
-            }).start(() => {
-                if (direction === 'right') {
-                    handleLike();
-                } else {
-                    handleDislike();
-                }
-                position.setValue({ x: 0, y: 0 });
-            });
-        };
-
-        const rotate = position.x.interpolate({
-            inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-            outputRange: ['-30deg', '0deg', '30deg'],
-            extrapolate: 'clamp',
-        });
-
-        const likeOpacity = position.x.interpolate({
-            inputRange: [0, SCREEN_WIDTH / 4],
-            outputRange: [0, 1],
-            extrapolate: 'clamp',
-        });
-
-        const nopeOpacity = position.x.interpolate({
-            inputRange: [-SCREEN_WIDTH / 4, 0],
-            outputRange: [1, 0],
-            extrapolate: 'clamp',
-        });
+        // Asegurarse de que el perfil actual existe antes de renderizar
+        if (!currentProfile) {
+            return (
+                <View style={styles.noProfilesContainer}>
+                    <Text style={styles.noProfilesEmoji}>😢</Text>
+                    <Text style={styles.noProfilesTitle}>No hay más perfiles</Text>
+                    <Text style={styles.noProfilesSubtitle}>Has visto todos los perfiles disponibles. ¡Vuelve más tarde para ver gente nueva!</Text>
+                    <TouchableOpacity style={styles.refreshButton} onPress={loadProfiles}>
+                        <Text style={styles.refreshButtonText}>Buscar de nuevo</Text>
+                    </TouchableOpacity>
+                </View>
+            );
+        }
 
         return (
             <View style={styles.discoverContainer}>
-                <PanGestureHandler
-                    onGestureEvent={onGestureEvent}
-                    onHandlerStateChange={onHandlerStateChange}
-                >
-                    <Animated.View
-                        style={[
-                            styles.profileCard,
-                            {
-                                transform: [
-                                    { translateX: position.x },
-                                    { translateY: position.y },
-                                    { rotate },
-                                ],
-                            },
-                        ]}
-                    >
-                        <Image
-                            source={{ uri: profile.image }}
-                            style={styles.profileImage}
-                            resizeMode="cover"
-                        />
-                        <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>
-                                {profile.name}, {profile.age}
-                            </Text>
-                            <View style={styles.locationContainer}>
-                                <MapPin size={16} color="#666" />
-                                <Text style={styles.locationText}>
-                                    {profile.location} • {profile.distance}
-                                </Text>
-                            </View>
-                            <Text style={styles.bioText}>
-                                {profile.bio}
-                            </Text>
+                <View style={styles.profileCard}>
+                    <Image source={{ uri: currentProfile.profilePictureUrl }} style={styles.profileImage} />
+                    <View style={styles.profileInfo}>
+                        <Text style={styles.profileName}>{currentProfile.name}, {currentProfile.age}</Text>
+                        <View style={styles.locationContainer}>
+                            <MapPin size={16} color="#666" />
+                            <Text style={styles.locationText}>{formatLocation(currentProfile.location)}</Text>
                         </View>
-
-                        <Animated.View
-                            style={[styles.likeBadge, { opacity: likeOpacity }]}
-                        >
-                            <Text style={styles.likeText}>LIKE</Text>
-                        </Animated.View>
-
-                        <Animated.View
-                            style={[styles.nopeBadge, { opacity: nopeOpacity }]}
-                        >
-                            <Text style={styles.nopeText}>NOPE</Text>
-                        </Animated.View>
-
-                    </Animated.View>
-                </PanGestureHandler>
+                        <Text style={styles.bioText}>{currentProfile.bio}</Text>
+                    </View>
+                </View>
                 <View style={styles.actionButtons}>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.dislikeButton]}
-                        onPress={handleDislike}
-                    >
-                        <X size={32} color="#FF5A5F" />
+                    <TouchableOpacity style={[styles.actionButton, styles.dislikeButton]} onPress={() => handleDislike(currentProfile)}>
+                        <X size={32} color="#F44336" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.likeButton]}
-                        onPress={handleLike}
-                    >
+                    <TouchableOpacity style={[styles.actionButton, styles.likeButton]} onPress={() => handleLike(currentProfile)}>
                         <Heart size={32} color="#4CAF50" />
                     </TouchableOpacity>
                 </View>
@@ -598,79 +456,113 @@ const LoveConnectApp = () => {
         );
     };
 
-    // Renderizar la barra de navegación inferior
-            // Manejar la navegación y resetear el chat si es necesario
-    const handleNavigation = (screen: string) => {
-        if (screen !== 'messages') {
-            setSelectedChat(null);
+    const renderMatchesList = () => {
+        const allConversations = [...conversations, ...matches.filter(m => !conversations.some(c => c.partnerUid === m.uid)).map(m => ({ partner: m, lastMessage: { text: '¡Nuevo match! Di hola 👋' }, unreadCount: 0, partnerUid: m.uid, id: m.uid, name: m.name, profilePictureUrl: m.profilePictureUrl }))];
+
+        if (allConversations.length === 0) {
+            return (
+                <View style={styles.placeholderContainer}>
+                    <Text style={styles.placeholderText}>Aún no tienes matches</Text>
+                    <Text style={styles.placeholderSubtext}>¡Sigue deslizando para encontrar a alguien especial!</Text>
+                </View>
+            );
         }
-        setCurrentScreen(screen);
+
+        return (
+            <ScrollView style={styles.matchesList}>
+                {allConversations.map((convo) => (
+                    <MatchItem
+                        key={convo.id}
+                        conversation={convo}
+                        onPress={() => setSelectedChat(convo)}
+                        isOnline={isUserOnline(convo.partnerUid)}
+                    />
+                ))}
+            </ScrollView>
+        );
     };
 
-    // Renderizar la barra de navegación inferior
-    const renderBottomNav = () => (
-        <BottomNav current={currentScreen} onChange={handleNavigation} />
-    );
-
-    // Si no está logueado, mostrar pantalla de login
-    if (!isLoggedIn) {
+    const renderSettingsScreen = () => {
+        if (!currentUser) return null;
         return (
-            <GestureHandlerRootView style={{ flex: 1 }}>
-                <LoginScreen onLoginSuccess={handleLoginSuccess} />
-            </GestureHandlerRootView>
+            <View style={styles.settingsContainer}>
+                <View style={styles.userProfile}>
+                    <Image source={{ uri: currentUser.profilePictureUrl }} style={styles.userAvatar} />
+                    <Text style={styles.userName}>{currentUser.name}</Text>
+                    <Text style={styles.userEmail}>{currentUser.email}</Text>
+                    <Text style={styles.userAge}>Edad: {currentUser.age}</Text>
+                    <Text style={styles.userBio}>{currentUser.bio}</Text>
+                </View>
+                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                    <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
+                </TouchableOpacity>
+            </View>
         );
+    };
+
+
+    const renderMainContent = () => {
+        if (selectedChat) {
+            return renderChatScreen();
+        }
+
+        let content;
+        switch (currentScreen) {
+            case 'discover':
+                content = renderDiscoverScreen();
+                break;
+            case 'messages':
+                content = renderMatchesList();
+                break;
+            case 'settings':
+                content = renderSettingsScreen();
+                break;
+            default:
+                content = <Text>Pantalla no encontrada</Text>;
+        }
+
+        return (
+            <>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => setCurrentScreen('settings')}>
+                        <UserIcon size={28} color="#ccc" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>LoveConnect</Text>
+                    <TouchableOpacity onPress={() => setCurrentScreen('messages')}>
+                        <MessageCircle size={28} color="#ccc" />
+                    </TouchableOpacity>
+                </View>
+                <ConnectionStatus isConnected={isConnected} />
+                <View style={styles.content}>{content}</View>
+                <BottomNav
+                    current={currentScreen}
+                    onChange={(screen) => setCurrentScreen(screen)}
+                />
+            </>
+        );
+    };
+
+    if (!isLoggedIn || !currentUser) {
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
     }
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>LoveConnect</Text>
-            </View>
-
-            <View style={styles.content}>
-                <ConnectionStatus isConnected={isConnected} />
-                {currentScreen === 'discover' && renderDiscoverScreen()}
-                {currentScreen === 'messages' && (
-                    selectedChat ? (
-                        renderChatScreen()
-                    ) : (
-                        renderMatchesList()
-                    )
-                )}
-                {currentScreen === 'settings' && (
-                    <View style={styles.settingsContainer}>
-                        <View style={styles.userProfile}>
-                            <Text style={styles.userName}>{currentUser?.name}</Text>
-                            <Text style={styles.userEmail}>{currentUser?.email}</Text>
-                            <Text style={styles.userAge}>Edad: {currentUser?.age} años</Text>
-                            {currentUser?.bio && (
-                                <Text style={styles.userBio}>{currentUser.bio}</Text>
-                            )}
-                        </View>
-                        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                            <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </View>
-
-            {renderBottomNav()}
-            
-            <WelcomeModal 
-                visible={showWelcome} 
-                onAccept={handleWelcomeAccept} 
-            />
-            
-            {matchedProfile && (
-                <MatchNotification
-                    visible={showMatchNotification}
-                    currentUser={currentUser}
-                    matchedUser={matchedProfile}
-                    onClose={handleMatchNotificationClose}
-                    onSendMessage={handleMatchSendMessage}
+                {renderMainContent()}
+                <WelcomeModal
+                    visible={showWelcome}
+                    onAccept={handleWelcomeAccept}
                 />
-            )}
+                {matchedProfile && currentUser && (
+                    <MatchNotification
+                        visible={showMatchNotification}
+                        currentUser={currentUser}
+                        matchedUser={matchedProfile}
+                        onClose={handleMatchNotificationClose}
+                        onSendMessage={handleMatchSendMessage}
+                    />
+                )}
             </View>
         </GestureHandlerRootView>
     );
@@ -690,6 +582,22 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+    },
+    settingsAvatar: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        marginRight: 16,
+    },
+    settingsName: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#1f2937',
+    },
+    settingsBio: {
+        fontSize: 16,
+        color: '#6b7280',
+        marginTop: 4,
     },
     headerTitle: {
         fontSize: 24,
@@ -1127,14 +1035,21 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     userEmail: {
-        fontSize: 16,
+        fontSize: 14,
         color: '#666',
         marginBottom: 5,
     },
     userAge: {
-        fontSize: 16,
+        fontSize: 14,
         color: '#666',
         marginBottom: 10,
+    },
+    userAvatar: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        marginBottom: 15,
+        alignSelf: 'center',
     },
     userBio: {
         fontSize: 14,
@@ -1160,4 +1075,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default LoveConnectApp;
+export default App;

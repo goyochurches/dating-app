@@ -1,25 +1,28 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Match } from '../types';
 
 interface Props {
-  match: Match;
-  onPress: (match: Match) => void;
+  conversation: any;
+  onPress: (conversation: any) => void;
+  isOnline: boolean;
 }
 
-export const MatchItem: React.FC<Props> = ({ match, onPress }) => {
+export const MatchItem: React.FC<Props> = ({ conversation, onPress, isOnline }) => {
+  const { partner, lastMessage, unreadCount } = conversation;
+  const contact = partner || conversation; // Handle both conversation and match objects
+
   return (
-    <TouchableOpacity style={styles.matchItem} onPress={() => onPress(match)}>
-      <Image source={{ uri: match.image }} style={styles.matchImage} />
+    <TouchableOpacity style={styles.matchItem} onPress={() => onPress(conversation)}>
+      <Image source={{ uri: contact.profilePictureUrl }} style={styles.matchImage} />
       <View style={styles.matchInfo}>
-        <Text style={styles.matchName}>{match.name}</Text>
+        <Text style={styles.matchName}>{contact.name}</Text>
         <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: match.online ? '#22c55e' : '#9ca3af' }]} />
-          <Text style={styles.statusText}>{match.online ? 'En línea' : 'Desconectado'}</Text>
+          <View style={[styles.statusDot, { backgroundColor: isOnline ? '#22c55e' : '#9ca3af' }]} />
+          <Text style={styles.statusText}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
         </View>
-        <Text style={styles.matchLastMessage} numberOfLines={1} ellipsizeMode="tail">{match.lastMessage}</Text>
+        {lastMessage && <Text style={styles.matchLastMessage} numberOfLines={1}>{lastMessage.text}</Text>}
       </View>
-      <Text style={styles.matchTime}>{match.time}</Text>
+      {/* Aquí podrías mostrar la hora del último mensaje o el contador de no leídos */}
     </TouchableOpacity>
   );
 };
