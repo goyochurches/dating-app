@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react-native';
-import { authService } from '../services/authService';
+import AuthService from '../services/authService';
+const authService = new AuthService();
 import RegisterForm from './RegisterForm';
 
 export const LoginScreen = ({ onLoginSuccess }) => {
@@ -132,7 +133,8 @@ export const LoginScreen = ({ onLoginSuccess }) => {
       const result = await authService.login(formData.email, formData.password);
 
       if (result.success) {
-        onLoginSuccess(result.user);
+        // Indicar que no es un usuario nuevo
+        onLoginSuccess(result.user, false);
       } else {
         setLoginError(result.message);
       }
@@ -146,8 +148,8 @@ export const LoginScreen = ({ onLoginSuccess }) => {
 
   const handleRegisterSuccess = (user) => {
     console.log('LoginScreen - handleRegisterSuccess called with user:', user);
-    // El usuario ya está registrado y logueado, solo redirigir
-    onLoginSuccess(user);
+    // Indicar que es un usuario nuevo para mostrar la bienvenida
+    onLoginSuccess(user, true);
   };
 
   const toggleMode = () => {

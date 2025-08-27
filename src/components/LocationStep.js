@@ -401,7 +401,7 @@ export const LocationStep = ({ userData, onNext, onBack }) => {
         showDistanceModal,
         () => setShowDistanceModal(false),
         distanceOptions.map(d => `${d} km`),
-        (item) => setSelectedDistance(parseInt(item)),
+        (item) => setMaxDistance(parseInt(item)),
         'Selecciona distancia máxima'
       )}
     </ScrollView>

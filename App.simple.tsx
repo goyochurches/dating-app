@@ -14,13 +14,15 @@ import {
 // Componentes simplificados sin dependencias nativas problemáticas
 import LoginScreen from './src/components/LoginScreen';
 import WelcomeModal from './src/components/WelcomeModal';
-import { authService } from './src/services/authService';
+import AuthService from './src/services/authService';
+const authService = new AuthService();
+import { User } from './src/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const LoveConnectApp = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn());
-  const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentScreen, setCurrentScreen] = useState('discover');
   const [showWelcome, setShowWelcome] = useState(false);
   const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
@@ -80,11 +82,17 @@ const LoveConnectApp = () => {
 
   // Verificar si hay usuario logueado al iniciar
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      setIsLoggedIn(true);
-      setCurrentUser(user);
-    }
+    const unsubscribe = authService.subscribeToAuthChanges(user => {
+      if (user) {
+        setCurrentUser(user as User);
+        setIsLoggedIn(true);
+      } else {
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Manejar login exitoso
@@ -356,7 +364,6 @@ const LoveConnectApp = () => {
       {showWelcome && (
         <WelcomeModal
           visible={showWelcome}
-          userName={currentUser?.name}
           onAccept={handleWelcomeAccept}
         />
       )}

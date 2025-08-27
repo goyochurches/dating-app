@@ -1,185 +1,128 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, fetchSignInMethodsForEmail } from 'firebase/auth';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db, auth } from './firebase';
+import { likeService } from './likeService';
 
-// Servicio de autenticación con datos mockeados
+// Servicio de autenticación 
 export class AuthService {
   constructor() {
-    // Control de primera vez - cargar desde AsyncStorage
-    this.firstTimeUsers = new Set();
-    this.initializeWelcomeData();
-    
-    // Usuarios mockeados para pruebas
-    this.mockUsers = [
-      {
-        id: 1,
-        email: 'ana@ejemplo.com',
-        password: '123456',
-        name: 'Ana García',
-        age: 25,
-        bio: 'Amante de los viajes y la fotografía',
-        image: 'https://randomuser.me/api/portraits/women/1.jpg'
-      },
-      {
-        id: 2,
-        email: 'carlos@ejemplo.com',
-        password: '123456',
-        name: 'Carlos López',
-        age: 28,
-        bio: 'Desarrollador y músico en tiempo libre',
-        image: 'https://randomuser.me/api/portraits/men/1.jpg'
-      },
-      {
-        id: 3,
-        email: 'maria@ejemplo.com',
-        password: '123456',
-        name: 'María Rodríguez',
-        age: 24,
-        bio: 'Diseñadora gráfica y amante del arte',
-        image: 'https://randomuser.me/api/portraits/women/2.jpg'
-      }
-    ];
-    
-    // Usuario actualmente logueado
     this.currentUser = null;
-    this.initializeSession();
+    this.authStateChangeCallbacks = [];
+
+    // Listener para el estado de autenticación
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Usuario está logueado, obtener sus datos de Firestore
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          this.currentUser = { uid: user.uid, ...userDoc.data() };
+        } else {
+          // Perfil no encontrado, podría ser un estado inconsistente
+          this.currentUser = { uid: user.uid, email: user.email };
+        }
+      } else {
+        // Usuario no está logueado
+        this.currentUser = null;
+      }
+      this.notifyAuthStateChangeCallbacks();
+    });
   }
 
-  // Simular delay de red
-  async delay(ms = 1000) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // Notificar a los callbacks sobre cambios en el estado de autenticación
+  notifyAuthStateChangeCallbacks() {
+    this.authStateChangeCallbacks.forEach((callback) => {
+      callback(this.currentUser);
+    });
+  }
+
+  // Suscribirse a cambios en el estado de autenticación
+  subscribeToAuthChanges(callback) {
+    this.authStateChangeCallbacks.push(callback);
+    return () => {
+      const index = this.authStateChangeCallbacks.indexOf(callback);
+      if (index !== -1) {
+        this.authStateChangeCallbacks.splice(index, 1);
+      }
+    };
   }
 
   // Login del usuario
   async login(email, password) {
-    await this.delay(1500); // Simular llamada a API
-    
-    const user = this.mockUsers.find(u => 
-      u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    
-    if (user) {
-      this.currentUser = { ...user };
-      delete this.currentUser.password; // No devolver la contraseña
-      await this.saveSession(); // Guardar sesión
-      return {
-        success: true,
-        user: this.currentUser,
-        message: '¡Bienvenido de vuelta!'
-      };
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Obtener perfil de Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        this.currentUser = { uid: user.uid, ...userDoc.data() };
+        return { success: true, user: this.currentUser };
+      } else {
+        return { success: false, message: 'No se encontró el perfil de usuario.' };
+      }
+    } catch (error) {
+      return { success: false, message: 'Email o contraseña incorrectos.' };
     }
-    
-    return {
-      success: false,
-      message: 'Email o contraseña incorrectos'
-    };
   }
 
   // Registro de nuevo usuario
   async register(userData) {
-    await this.delay(2000); // Simular llamada a API
-    
-    const { 
-      email, 
-      password, 
-      name, 
-      age, 
-      gender, 
-      lookingFor, 
-      profileImage,
-      preferredAgeRange,
-      location,
-      relationshipTypes,
-      ethnicity,
-      religion
-    } = userData;
-    
-    // Verificar si el usuario ya existe en mockUsers o registrados
-    const existingInMock = this.mockUsers.find(u => 
-      u.email.toLowerCase() === email.toLowerCase()
-    );
-    
-    const registeredUsers = await this.loadRegisteredUsers();
-    const existingInRegistered = registeredUsers.find(u => 
-      u.email.toLowerCase() === email.toLowerCase()
-    );
-    
-    if (existingInMock || existingInRegistered) {
-      return {
-        success: false,
-        message: 'Ya existe una cuenta con este email'
-      };
-    }
+    const { email, password, ...profileData } = userData;
 
-    // Verificar si ya existe en usuarios registrados (prevenir doble registro)
-    const registeredUsersCheck = await this.loadRegisteredUsers();
-    const alreadyRegistered = registeredUsersCheck.find(u => 
-      u.email.toLowerCase() === email.toLowerCase()
-    );
-    
-    if (alreadyRegistered) {
-      console.log('AuthService - Usuario ya registrado previamente, devolviendo usuario existente');
-      this.currentUser = alreadyRegistered;
-      await this.saveSession();
+    try {
+      // Crear usuario en Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Preparar datos del perfil para Firestore
+      const userProfile = {
+        email: user.email,
+        ...profileData,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Guardar perfil en Firestore
+      await setDoc(doc(db, 'users', user.uid), userProfile);
+      
+      this.currentUser = { uid: user.uid, ...userProfile };
+
       return {
         success: true,
         user: this.currentUser,
-        message: '¡Cuenta creada exitosamente!'
+        message: '¡Cuenta creada exitosamente!',
       };
+    } catch (error) {
+      // Manejar errores comunes de Firebase
+      if (error.code === 'auth/email-already-in-use') {
+        return { success: false, message: 'El correo electrónico ya está en uso.' };
+      }
+      if (error.code === 'auth/weak-password') {
+        return { success: false, message: 'La contraseña es demasiado débil.' };
+      }
+      return { success: false, message: 'Ocurrió un error durante el registro.' };
     }
-
-    // Crear nuevo usuario con todos los datos del registro
-    const allUsers = await this.getAllUsers();
-    const newUser = {
-      id: Date.now(), // Usar timestamp para evitar conflictos de ID
-      email: email.toLowerCase(),
-      password,
-      name,
-      age: parseInt(age),
-      gender,
-      lookingFor,
-      bio: 'Nuevo en LoveConnect',
-      image: profileImage || `https://randomuser.me/api/portraits/${gender === 'mujer' ? 'women' : 'men'}/${Math.floor(Math.random() * 50)}.jpg`,
-      preferredAgeRange,
-      location,
-      relationshipTypes,
-      ethnicity,
-      religion,
-      registeredAt: new Date().toISOString()
-    };
-
-    // NO agregar a mockUsers, solo guardar en AsyncStorage
-    this.currentUser = newUser;
-    await this.saveSession();
-
-    console.log('AuthService - Usuario registrado y guardado en AsyncStorage:', this.currentUser);
-
-    return {
-      success: true,
-      user: this.currentUser,
-      message: '¡Cuenta creada exitosamente!'
-    };
   }
 
   // Verificar si un email ya existe
   async checkEmailExists(email) {
-    await this.delay(500);
-    
-    const existsInMock = this.mockUsers.some(u => 
-      u.email.toLowerCase() === email.toLowerCase()
-    );
-    
-    const registeredUsers = await this.loadRegisteredUsers();
-    const existsInRegistered = registeredUsers.some(u => 
-      u.email.toLowerCase() === email.toLowerCase()
-    );
-    
-    return { exists: existsInMock || existsInRegistered };
+    try {
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      return { exists: methods.length > 0 };
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      return { exists: false };
+    }
   }
 
   // Logout
   async logout() {
-    this.currentUser = null;
-    await this.clearSession(); // Limpiar sesión guardada
-    return { success: true, message: 'Sesión cerrada correctamente' };
+    try {
+      await signOut(auth);
+      this.currentUser = null;
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: 'Error al cerrar sesión.' };
+    }
   }
 
   // Obtener usuario actual
@@ -192,140 +135,37 @@ export class AuthService {
     return this.currentUser !== null;
   }
 
-  // Verificar si es la primera vez del usuario
-  isFirstTime(userId) {
-    return !this.firstTimeUsers.has(userId);
-  }
+  // Obtener todos los usuarios de Firestore con los que no se ha interactuado
+  async getAvailableUsers() {
+    if (!this.currentUser) return [];
 
-  // Inicializar datos de bienvenida desde AsyncStorage
-  async initializeWelcomeData() {
     try {
-      const data = await this.loadWelcomeData();
-      this.firstTimeUsers = new Set(data);
-    } catch (error) {
-      console.error('Error initializing welcome data:', error);
-    }
-  }
+      // 1. Obtener los IDs de los usuarios con los que ya se ha interactuado
+      const interactedIds = await likeService.getInteractedUserIds();
+      
+      // 2. Añadir el ID del usuario actual para excluirlo también
+      const excludedIds = [...interactedIds, this.currentUser.uid];
 
-  // Cargar datos de bienvenida desde AsyncStorage
-  async loadWelcomeData() {
-    try {
-      const stored = await AsyncStorage.getItem('loveconnect_welcome_seen');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Error loading welcome data:', error);
-      return [];
-    }
-  }
-
-  // Guardar datos de bienvenida en AsyncStorage
-  async saveWelcomeData() {
-    try {
-      const data = Array.from(this.firstTimeUsers);
-      await AsyncStorage.setItem('loveconnect_welcome_seen', JSON.stringify(data));
-    } catch (error) {
-      console.error('Error saving welcome data:', error);
-    }
-  }
-
-  // Guardar sesión en AsyncStorage
-  async saveSession() {
-    try {
-      if (this.currentUser) {
-        await AsyncStorage.setItem('loveconnect_session', JSON.stringify(this.currentUser));
-        // También guardar en la lista de usuarios registrados
-        const registeredUsers = await this.loadRegisteredUsers();
-        const existingIndex = registeredUsers.findIndex(u => u.id === this.currentUser.id);
-        if (existingIndex >= 0) {
-          registeredUsers[existingIndex] = this.currentUser;
-        } else {
-          registeredUsers.push(this.currentUser);
+      // 3. Obtener todos los usuarios de la colección
+      const usersCollection = collection(db, 'users');
+      const querySnapshot = await getDocs(usersCollection);
+      
+      const availableUsers = [];
+      querySnapshot.forEach((doc) => {
+        // 4. Filtrar para que solo queden los que no están en la lista de excluidos
+        if (!excludedIds.includes(doc.id)) {
+          availableUsers.push({ uid: doc.id, ...doc.data() });
         }
-        await AsyncStorage.setItem('loveconnect_registered_users', JSON.stringify(registeredUsers));
-        console.log('Session and user data saved permanently to AsyncStorage');
-      }
-    } catch (error) {
-      console.error('Error saving session:', error);
-    }
-  }
+      });
 
-  // Cargar usuarios registrados desde AsyncStorage
-  async loadRegisteredUsers() {
-    try {
-      const stored = await AsyncStorage.getItem('loveconnect_registered_users');
-      return stored ? JSON.parse(stored) : [];
+      return availableUsers;
     } catch (error) {
-      console.error('Error loading registered users:', error);
+      console.error("Error fetching available users: ", error);
       return [];
     }
   }
 
-  // Inicializar sesión desde AsyncStorage
-  async initializeSession() {
-    try {
-      this.currentUser = await this.loadSession();
-    } catch (error) {
-      console.error('Error initializing session:', error);
-    }
-  }
-
-  // Cargar sesión desde AsyncStorage
-  async loadSession() {
-    try {
-      const stored = await AsyncStorage.getItem('loveconnect_session');
-      return stored ? JSON.parse(stored) : null;
-    } catch (error) {
-      console.error('Error loading session:', error);
-      return null;
-    }
-  }
-
-  // Limpiar sesión guardada
-  async clearSession() {
-    try {
-      await AsyncStorage.removeItem('loveconnect_session');
-    } catch (error) {
-      console.error('Error clearing session:', error);
-    }
-  }
-
-  // Marcar que el usuario ya vio la bienvenida
-  async markWelcomeSeen(userId) {
-    this.firstTimeUsers.add(userId);
-    await this.saveWelcomeData(); // Guardar permanentemente
-  }
-
-  // Limpiar todos los usuarios registrados excepto los de ejemplo
-  async clearRegisteredUsers() {
-    try {
-      await AsyncStorage.removeItem('loveconnect_registered_users');
-      await AsyncStorage.removeItem('loveconnect_session');
-      await AsyncStorage.removeItem('loveconnect_welcome_seen');
-      console.log('All registered users cleared, only example users remain');
-    } catch (error) {
-      console.error('Error clearing registered users:', error);
-    }
-  }
-
-  // Obtener todos los usuarios registrados (mock + registrados)
-  async getAllUsers() {
-    const registeredUsers = await this.loadRegisteredUsers();
-    const allUsers = [...this.mockUsers, ...registeredUsers];
-    
-    // Eliminar duplicados por email y remover contraseñas
-    const uniqueUsers = allUsers.reduce((acc, user) => {
-      const existing = acc.find(u => u.email === user.email);
-      if (!existing) {
-        const userCopy = { ...user };
-        delete userCopy.password;
-        acc.push(userCopy);
-      }
-      return acc;
-    }, []);
-    
-    return uniqueUsers;
-  }
 }
 
-// Instancia singleton
-export const authService = new AuthService();
+// Export the class
+export default AuthService;

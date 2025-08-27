@@ -1,19 +1,14 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Animated, TouchableOpacity, Dimensions, Platform, ImageStyle } from 'react-native';
 import { Heart, MessageCircle } from 'lucide-react-native';
+import { User } from '../types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface MatchNotificationProps {
   visible: boolean;
-  currentUser: {
-    name: string;
-    image?: string;
-  };
-  matchedUser: {
-    name: string;
-    image: string;
-  };
+  currentUser: User;
+  matchedUser: User;
   onClose: () => void;
   onSendMessage: () => void;
 }
@@ -89,8 +84,8 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
         {/* Imágenes de los usuarios */}
         <View style={styles.usersContainer}>
           <View style={styles.userImageContainer}>
-            {currentUser.image ? (
-              <Image source={{ uri: currentUser.image }} style={userImageStyle} />
+            {currentUser.profilePictureUrl ? (
+              <Image source={{ uri: currentUser.profilePictureUrl }} style={userImageStyle} />
             ) : (
               <View style={[userImageStyle, styles.placeholderImage]}>
                 <Text style={styles.placeholderText}>
@@ -106,7 +101,7 @@ export const MatchNotification: React.FC<MatchNotificationProps> = ({
           </View>
 
           <View style={styles.userImageContainer}>
-            <Image source={{ uri: matchedUser.image }} style={userImageStyle} />
+            <Image source={{ uri: matchedUser.profilePictureUrl }} style={userImageStyle} />
             <Text style={styles.userName}>{matchedUser.name}</Text>
           </View>
         </View>
