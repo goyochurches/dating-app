@@ -1,10 +1,11 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
 import { Send, Image as ImageIcon, Video, X as CloseIcon } from 'lucide-react-native';
 import { ChatHeader } from '../components/ChatHeader';
 import { MediaPreview } from '../components/MediaPreview';
 import { MessageStatus } from '../components/MessageStatus';
 import { Conversation, Message, User } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const formatTimestamp = (timestamp) => {
   if (!timestamp?.toDate) return '';
@@ -53,6 +54,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
 
   const isOnline = selectedChat ? isUserOnline(selectedChat.partnerUid) : false;
   const isPartnerTyping = selectedChat ? typingUsers[selectedChat.id] : false;
+  
+  console.log('💬 ChatScreen render - Partner typing:', isPartnerTyping);
+  console.log('💬 ChatScreen render - Typing users:', typingUsers);
 
   return (
     <View style={styles.chatContainer}>
