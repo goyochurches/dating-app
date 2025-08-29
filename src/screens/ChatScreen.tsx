@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image 
 import { Send, Image as ImageIcon, Video, X as CloseIcon } from 'lucide-react-native';
 import { ChatHeader } from '../components/ChatHeader';
 import { MediaPreview } from '../components/MediaPreview';
+import { MessageStatus } from '../components/MessageStatus';
 import { Conversation, Message, User } from '../types';
 
 const formatTimestamp = (timestamp) => {
@@ -70,15 +71,34 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
         contentContainerStyle={{ paddingBottom: 20 }}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
-        {messages.map((message) => (
-          <View key={message._id} style={[styles.messageRow, { justifyContent: message.user?._id === currentUser.uid ? 'flex-end' : 'flex-start' }]}>
-            <View style={[styles.messageBubble, { backgroundColor: message.user?._id === currentUser.uid ? '#007AFF' : '#E5E5EA' }]}>
-              {message.text && <Text style={[styles.messageText, { color: message.user?._id === currentUser.uid ? 'white' : 'black' }]}>{message.text}</Text>}
-              {message.media && <Image source={{ uri: message.media }} style={styles.mediaMessage} />}
-              <Text style={styles.messageTime}>{formatTimestamp(message.createdAt)}</Text>
+        {messages.map((message) => {
+          const isOwnMessage = message.user?._id === currentUser.uid;
+          const getMessageStatus = () => {
+            switch (message.status) {
+              case 0: return 'sent';
+              case 1: return 'delivered';
+              case 2: return 'read';
+              default: return 'sending';
+            }
+          };
+
+          return (
+            <View key={message._id} style={[styles.messageRow, { justifyContent: isOwnMessage ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.messageBubble, { backgroundColor: isOwnMessage ? '#007AFF' : '#E5E5EA' }]}>
+                {message.text && <Text style={[styles.messageText, { color: isOwnMessage ? 'white' : 'black' }]}>{message.text}</Text>}
+                {message.media && <Image source={{ uri: message.media }} style={styles.mediaMessage} />}
+                <View style={styles.messageFooter}>
+                  <Text style={[styles.messageTime, { color: isOwnMessage ? '#B8D4FF' : '#666' }]}>
+                    {formatTimestamp(message.createdAt)}
+                  </Text>
+                  {isOwnMessage && message.status !== undefined && (
+                    <MessageStatus status={getMessageStatus()} />
+                  )}
+                </View>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
       {isPartnerTyping && (
         <View style={styles.typingIndicatorContainer}>
@@ -211,6 +231,12 @@ const styles = StyleSheet.create({
     color: '#a0a0a0',
     alignSelf: 'flex-end',
     marginTop: 2,
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
   },
 });
 

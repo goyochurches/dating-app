@@ -11,13 +11,13 @@ export const MessageStatus: React.FC<Props> = ({ status, style }) => {
   const getStatusIcon = () => {
     switch (status) {
       case 'sending':
-        return <Clock size={12} color="#999" />;
+        return <Clock size={18} color="#999" />;
       case 'sent':
-        return <Check size={12} color="#999" />;
+        return <Check size={18} color="#999" />;
       case 'delivered':
-        return <CheckCheck size={12} color="#999" />;
+        return <CheckCheck size={18} color="#999" />;
       case 'read':
-        return <CheckCheck size={12} color="#4CAF50" />;
+        return <CheckCheck size={18} color="#FFD700" />;
       default:
         return null;
     }
