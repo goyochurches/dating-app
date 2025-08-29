@@ -9,7 +9,21 @@ export interface User {
   profilePictureUrl: string;
   profileImage?: string; // Para imágenes base64 durante desarrollo
   interests?: string[];
-  location?: string;
+  location?: string | {
+    country?: string;
+    state?: string;
+    city?: string;
+    maxDistance?: number;
+  };
+  gender?: string;
+  lookingFor?: string;
+  ethnicity?: string;
+  religion?: string;
+  preferredAgeRange?: {
+    min: number;
+    max: number;
+  };
+  relationshipTypes?: string[];
   createdAt?: string;
 }
 
