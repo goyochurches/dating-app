@@ -9,7 +9,7 @@ interface SettingsScreenProps {
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onLogout }) => {
   if (!currentUser) {
-    return null; // Or a loading indicator
+    return null;
   }
 
   return (

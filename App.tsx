@@ -270,16 +270,28 @@ const App = () => {
     const handleTextInputChange = (text) => {
         setNewMessage(text);
 
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-        }
+        if (!selectedChat) return;
 
-        if (selectedChat) {
+        // Solo activar typing si realmente está escribiendo (texto no vacío)
+        if (text.trim().length > 0) {
+            // Limpiar timeout anterior
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            
+            // Activar typing
             updateTypingStatus(selectedChat.id, true);
 
+            // Desactivar typing después de 2 segundos de inactividad
             typingTimeoutRef.current = setTimeout(() => {
                 updateTypingStatus(selectedChat.id, false);
-            }, 3000);
+            }, 2000);
+        } else {
+            // Si el campo está vacío, desactivar typing inmediatamente
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            updateTypingStatus(selectedChat.id, false);
         }
     };
 
@@ -294,6 +306,12 @@ const App = () => {
             };
 
             if (selectedChat?.id) {
+                // Desactivar typing antes de enviar
+                if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                }
+                updateTypingStatus(selectedChat.id, false);
+                
                 await sendMessage(selectedChat.id, messageData);
             }
 

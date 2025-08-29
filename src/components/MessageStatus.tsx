@@ -17,7 +17,7 @@ export const MessageStatus: React.FC<Props> = ({ status, style }) => {
       case 'delivered':
         return <CheckCheck size={18} color="#999" />;
       case 'read':
-        return <CheckCheck size={18} color="#FFD700" />;
+        return <CheckCheck size={18} color="#FF4444" />;
       default:
         return null;
     }

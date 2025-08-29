@@ -29,10 +29,19 @@ export const useMessaging = (currentUser) => {
 
       const typingUpdate = {};
       loadedConversations.forEach(conv => {
+        console.log('🔍 Conversation', conv.id, 'typing data:', conv.typing);
         if (conv.typing) {
-          typingUpdate[conv.id] = conv.typing;
+          // Verificar si algún participante que no soy yo está escribiendo
+          const isPartnerTyping = Object.keys(conv.typing).some(userId => 
+            userId !== currentUser.uid && conv.typing[userId] === true
+          );
+          if (isPartnerTyping) {
+            typingUpdate[conv.id] = true;
+            console.log('⌨️ Partner is typing in conversation:', conv.id);
+          }
         }
       });
+      console.log('⌨️ Final typing update:', typingUpdate);
       setTypingUsers(typingUpdate);
 
       setLoading(false);
