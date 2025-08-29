@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { User } from '../types';
+import { UserPresenceStatus } from './UserPresenceStatus';
 
 interface Props {
   partner: User | any;
-  isOnline: boolean;
+  isOnline?: boolean; // Mantener por compatibilidad
   onBack: () => void;
 }
 
@@ -24,10 +25,12 @@ export const ChatHeader: React.FC<Props> = ({ partner, isOnline, onBack }) => {
         </TouchableOpacity>
         <View style={styles.containerCenter}>
             <Text style={styles.chatTitle}>{partner?.name}</Text>
-            <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: isOnline ? '#22c55e' : '#9ca3af' }]} />
-                <Text style={styles.statusText}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
-            </View>
+            <UserPresenceStatus 
+              userId={partner?.uid || partner?.id} 
+              showText={true} 
+              size="small" 
+              style={styles.presenceStatus}
+            />
         </View>
         {avatarUrl ? (
           Platform.OS === 'web' ? (
@@ -72,6 +75,7 @@ const styles = StyleSheet.create({
   },
   containerCenter: { alignItems: 'center' },
   chatTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  presenceStatus: { marginTop: 2 },
   statusRow: { marginTop: 2, flexDirection: 'row', alignItems: 'center' },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   statusText: { fontSize: 12, color: '#666' },

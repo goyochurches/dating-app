@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { Heart, MapPin, X } from 'lucide-react-native';
 import { User } from '../types';
+import { UserPresenceStatus } from '../components/UserPresenceStatus';
 
 const formatLocation = (location) => {
   if (!location) return '';
@@ -89,6 +90,12 @@ const DiscoverScreen: React.FC<DiscoverScreenProps> = ({
         )}
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{currentProfile.name}, {currentProfile.age}</Text>
+          <UserPresenceStatus 
+            userId={currentProfile.uid} 
+            showText={true} 
+            size="medium" 
+            style={styles.presenceStatus}
+          />
           <View style={styles.locationContainer}>
             <MapPin size={16} color="#666" />
             <Text style={styles.locationText}>{formatLocation(currentProfile.location)}</Text>
@@ -207,6 +214,9 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 5,
+    },
+    presenceStatus: {
+        marginBottom: 8,
     },
     locationContainer: {
         flexDirection: 'row',

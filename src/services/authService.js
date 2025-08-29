@@ -2,6 +2,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, on
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { likeService } from './likeService';
+import { presenceService } from './presenceService';
 
 // Servicio de autenticación 
 export class AuthService {
@@ -16,12 +17,16 @@ export class AuthService {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           this.currentUser = { uid: user.uid, ...userDoc.data() };
+          // Inicializar presencia cuando el usuario está logueado
+          await presenceService.initializePresence(user.uid);
         } else {
           // Perfil no encontrado, podría ser un estado inconsistente
           this.currentUser = { uid: user.uid, email: user.email };
+          await presenceService.initializePresence(user.uid);
         }
       } else {
-        // Usuario no está logueado
+        // Usuario no está logueado - limpiar presencia
+        await presenceService.cleanup();
         this.currentUser = null;
       }
       this.notifyAuthStateChangeCallbacks();
@@ -56,6 +61,8 @@ export class AuthService {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
         this.currentUser = { uid: user.uid, ...userDoc.data() };
+        // Inicializar presencia al hacer login manual
+        await presenceService.initializePresence(user.uid);
         return { success: true, user: this.currentUser };
       } else {
         return { success: false, message: 'No se encontró el perfil de usuario.' };
@@ -119,6 +126,8 @@ export class AuthService {
   // Logout
   async logout() {
     try {
+      // Limpiar presencia antes de hacer logout
+      await presenceService.cleanup();
       await signOut(auth);
       this.currentUser = null;
       return { success: true };
