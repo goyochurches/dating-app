@@ -1,13 +1,31 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Wifi, WifiOff } from 'lucide-react-native';
+import { UserPresenceStatus } from './UserPresenceStatus';
 
 interface Props {
-  isConnected: boolean;
+  isConnected?: boolean;
+  userId?: string;
+  showUserPresence?: boolean;
   style?: any;
 }
 
-export const ConnectionStatus: React.FC<Props> = ({ isConnected, style }) => {
+export const ConnectionStatus: React.FC<Props> = ({ 
+  isConnected, 
+  userId, 
+  showUserPresence = false,
+  style 
+}) => {
+  // Si se especifica mostrar presencia de usuario, usa el nuevo componente
+  if (showUserPresence && userId) {
+    return (
+      <View style={[styles.userPresenceContainer, style]}>
+        <UserPresenceStatus userId={userId} showText={true} />
+      </View>
+    );
+  }
+
+  // Comportamiento original para estado de conexión de red
   if (isConnected) {
     return null; // Don't show when connected
   }
@@ -36,5 +54,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 6,
+  },
+  userPresenceContainer: {
+    alignSelf: 'center',
+    marginVertical: 4,
   },
 });

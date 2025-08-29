@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { UserPresenceStatus } from './UserPresenceStatus';
 
 interface Props {
   conversation: any;
   onPress: (conversation: any) => void;
-  isOnline: boolean;
+  isOnline?: boolean; // Mantenemos para compatibilidad, pero usaremos el nuevo sistema
 }
 
 export const MatchItem: React.FC<Props> = ({ conversation, onPress, isOnline }) => {
@@ -70,10 +71,12 @@ export const MatchItem: React.FC<Props> = ({ conversation, onPress, isOnline }) 
       
       <View style={styles.matchInfo}>
         <Text style={styles.matchName}>{partner.name}</Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: isOnline ? '#22c55e' : '#9ca3af' }]} />
-          <Text style={styles.statusText}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
-        </View>
+        <UserPresenceStatus 
+          userId={conversation.partnerUid} 
+          showText={true} 
+          size="small" 
+          style={styles.presenceStatus}
+        />
         {lastMessageText && <Text style={styles.matchLastMessage} numberOfLines={1}>{lastMessageText}</Text>}
       </View>
     </TouchableOpacity>
@@ -88,6 +91,7 @@ const styles = StyleSheet.create({
   matchName: { fontSize: 16, fontWeight: 'bold', marginBottom: 3 },
   matchLastMessage: { fontSize: 14, color: '#666', maxWidth: '80%' },
   matchTime: { fontSize: 12, color: '#999' },
+  presenceStatus: { marginVertical: 2 },
   statusRow: { marginTop: 2, flexDirection: 'row', alignItems: 'center' },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   statusText: { fontSize: 12, color: '#666' },
