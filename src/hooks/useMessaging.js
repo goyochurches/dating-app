@@ -50,10 +50,16 @@ export const useMessaging = (currentUser) => {
     messagingService.listenForMessages(conversationId, (loadedMessages) => {
       setMessages(loadedMessages);
     });
+    
+    // Indicar que el usuario está viendo este chat
+    messagingService.setUserViewingChat(conversationId, true);
   }, []);
 
   const stopListeningForMessages = useCallback((conversationId) => {
     messagingService.stopListeningForMessages(conversationId);
+    
+    // Indicar que el usuario ya no está viendo este chat
+    messagingService.setUserViewingChat(conversationId, false);
     setMessages([]);
   }, []);
 
