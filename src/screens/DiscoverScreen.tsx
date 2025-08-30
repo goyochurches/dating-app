@@ -76,7 +76,7 @@ const DiscoverScreen: React.FC<DiscoverScreenProps> = ({
             src={currentProfile.profilePictureUrl || currentProfile.profileImage}
             style={{
               width: '100%',
-              height: 400,
+              height: '70%',
               objectFit: 'cover'
             }}
             onError={() => console.log('Error cargando imagen de perfil')}
@@ -180,11 +180,14 @@ const styles = StyleSheet.create({
     },
     discoverContainer: {
         flex: 1,
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     profileCard: {
         backgroundColor: '#fff',
         borderRadius: 15,
+        width: '50%',
+        height: '85%',
         ...Platform.select({
             ios: {
                 shadowColor: '#000',
@@ -205,7 +208,8 @@ const styles = StyleSheet.create({
     },
     profileImage: {
         width: '100%',
-        height: 400,
+        height: '70%',
+        objectFit: 'cover',
     },
     profileInfo: {
         padding: 20,
