@@ -62,6 +62,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     <View style={styles.chatContainer}>
       <ChatHeader
         partner={{ 
+          uid: selectedChat.partnerUid,
           name: selectedChat.partnerName, 
           profilePictureUrl: selectedChat.partnerAvatar,
           avatar: selectedChat.partnerAvatar

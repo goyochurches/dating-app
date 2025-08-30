@@ -355,21 +355,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onLogout, 
       const { db } = await import('../services/firebase');
 
       const userRef = doc(db, 'users', updatedUser.uid);
-      const updateData = {
-        name: updatedUser.name,
-        age: updatedUser.age,
-        bio: updatedUser.bio,
-        location: updatedUser.location,
-        gender: updatedUser.gender,
-        lookingFor: updatedUser.lookingFor,
-        ethnicity: updatedUser.ethnicity,
-        religion: updatedUser.religion,
-        preferredAgeRange: updatedUser.preferredAgeRange,
-        relationshipTypes: updatedUser.relationshipTypes,
-        profileImage: updatedUser.profileImage,
-        profilePictureUrl: updatedUser.profilePictureUrl,
+      
+      // Filtrar campos undefined para evitar errores de Firebase
+      const updateData: any = {
         updatedAt: new Date().toISOString()
       };
+
+      if (updatedUser.name !== undefined) updateData.name = updatedUser.name;
+      if (updatedUser.age !== undefined) updateData.age = updatedUser.age;
+      if (updatedUser.bio !== undefined) updateData.bio = updatedUser.bio;
+      if (updatedUser.location !== undefined) updateData.location = updatedUser.location;
+      if (updatedUser.gender !== undefined) updateData.gender = updatedUser.gender;
+      if (updatedUser.lookingFor !== undefined) updateData.lookingFor = updatedUser.lookingFor;
+      if (updatedUser.ethnicity !== undefined) updateData.ethnicity = updatedUser.ethnicity;
+      if (updatedUser.religion !== undefined) updateData.religion = updatedUser.religion;
+      if (updatedUser.preferredAgeRange !== undefined) updateData.preferredAgeRange = updatedUser.preferredAgeRange;
+      if (updatedUser.relationshipTypes !== undefined) updateData.relationshipTypes = updatedUser.relationshipTypes;
+      if (updatedUser.profileImage !== undefined) updateData.profileImage = updatedUser.profileImage;
+      if (updatedUser.profilePictureUrl !== undefined) updateData.profilePictureUrl = updatedUser.profilePictureUrl;
       
       console.log('Datos que se van a actualizar en Firebase:', updateData);
       await updateDoc(userRef, updateData);

@@ -62,13 +62,13 @@ export class PresenceService {
       this.setOffline();
     });
 
-    // Listener para cuando la app pierde el foco (opcional)
+    // Listener para cuando la app pierde el foco - NO marcar como offline inmediatamente
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.setOffline();
-      } else {
+      if (!document.hidden) {
+        // Cuando regresa al foco, asegurar que esté online
         this.setOnline();
       }
+      // No marcar como offline cuando pierde el foco - el heartbeat se encargará
     });
   }
 
@@ -110,7 +110,7 @@ export class PresenceService {
         const data = presenceDoc.data();
         const now = Date.now();
         const lastSeen = data.lastSeen?.toDate?.()?.getTime() || 0;
-        const isRecentlyActive = (now - lastSeen) < 2 * 60 * 1000; // 2 minutos
+        const isRecentlyActive = (now - lastSeen) < 5 * 60 * 1000; // 5 minutos
         
         return {
           isOnline: data.isOnline && isRecentlyActive,
@@ -134,7 +134,7 @@ export class PresenceService {
         const data = doc.data();
         const now = Date.now();
         const lastSeen = data.lastSeen?.toDate?.()?.getTime() || 0;
-        const isRecentlyActive = (now - lastSeen) < 2 * 60 * 1000; // 2 minutos
+        const isRecentlyActive = (now - lastSeen) < 5 * 60 * 1000; // 5 minutos
         
         callback({
           isOnline: data.isOnline && isRecentlyActive,

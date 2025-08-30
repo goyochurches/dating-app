@@ -20,6 +20,7 @@ import { ChatHeader } from './src/components/ChatHeader';
 import { MatchItem } from './src/components/MatchItem';
 import { MessageBubble } from './src/components/MessageBubble';
 import { MediaPreview } from './src/components/MediaPreview';
+import { UserPresenceStatus } from './src/components/UserPresenceStatus';
 import { User, MediaType, Match, Message } from './src/types';
 import { BottomNav } from './src/components/BottomNav';
 import { ConnectionStatus } from './src/components/ConnectionStatus';
@@ -408,11 +409,32 @@ const App = () => {
                 content = <Text>Pantalla no encontrada</Text>;
         }
 
+        const getHeaderTitle = () => {
+            switch (currentScreen) {
+                case 'discover':
+                    return 'Encuentra tu destino';
+                case 'messages':
+                    return 'Mensajes';
+                case 'settings':
+                    return 'Configuración';
+                default:
+                    return 'LoveConnect';
+            }
+        };
+
         return (
             <>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => setCurrentScreen('settings')}><UserIcon size={28} color="#ccc" /></TouchableOpacity>
-                    <Text style={styles.headerTitle}>LoveConnect</Text>
+                    <View style={styles.headerCenter}>
+                        <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
+                        <UserPresenceStatus 
+                            userId={currentUser?.uid} 
+                            showText={true} 
+                            size="small" 
+                            style={styles.userPresenceHeader}
+                        />
+                    </View>
                     <TouchableOpacity onPress={() => setCurrentScreen('messages')}><MessageCircle size={28} color="#ccc" /></TouchableOpacity>
                 </View>
                 <ConnectionStatus isConnected={isConnected} />
@@ -470,12 +492,19 @@ const styles = StyleSheet.create({
         color: '#6b7280',
         marginTop: 4,
     },
+    headerCenter: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     headerTitle: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#FF5A5F',
-        flex: 1,
         textAlign: 'center',
+    },
+    userPresenceHeader: {
+        marginTop: 2,
     },
     content: {
         flex: 1,
